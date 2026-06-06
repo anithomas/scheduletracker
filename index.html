@@ -470,10 +470,9 @@
 
       /* App-shell layout: fill viewport height, header top, nav bottom, main scrolls in between */
       #appShell{
-        display:flex!important;
         flex-direction:column;
-        height:100dvh;
         height:100vh;
+        height:100dvh;
         overflow:hidden;
       }
       header{
@@ -930,6 +929,20 @@
             </div>
           </div>
         </div>
+
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-title"><div class="config-card-icon ci-purple">📅</div> Calendar Event Types</div>
+          </div>
+          <div class="config-card-body">
+            <div class="tag-list" id="adminEventTypeList"></div>
+            <div class="tag-add-row">
+              <input type="text" class="tag-add-input" id="newEventTypeEmoji" placeholder="📌" maxlength="2" style="width:52px;flex-shrink:0" />
+              <input type="text" class="tag-add-input" id="newEventTypeLabel" placeholder="e.g. Anniversary" onkeydown="if(event.key==='Enter')addEventType()" />
+              <button class="btn btn-primary" onclick="addEventType()">+ Add</button>
+            </div>
+          </div>
+        </div>
       </div>
       <!-- USER ACCESS MANAGEMENT -->
       <div class="config-grid rbac-admin" style="margin-top:4px">
@@ -1138,11 +1151,7 @@
       <div class="form-group"><label>Time <span style="font-weight:400;color:var(--gray-400)">(12-hr)</span></label><input type="time" id="cTime" /></div>
       <div class="form-group">
         <label>Type</label>
-        <select id="cType">
-          <option value="medical">🏥 Medical</option><option value="vehicle">🚗 Vehicle</option>
-          <option value="home">🏡 Home</option><option value="school">🏫 School</option>
-          <option value="general">📌 General</option><option value="other">📎 Other</option>
-        </select>
+        <select id="cType"></select>
       </div>
       <div class="form-group"><label>Family Member</label><select id="cMember"></select></div>
       <div class="form-group"><label>Location</label><input type="text" id="cLocation" placeholder="📍 Clinic, office..." /></div>
@@ -1189,8 +1198,39 @@ let appMembers = [
 ];
 let homeCategories = ['HVAC','Appliances','Plumbing','Electrical','Lawn & Garden','Cleaning','Pest Control','Other'];
 let serviceTypes = ['Oil Change','Tire Rotation','Tire Pressure Check','Brake Inspection','Brake Pad Replacement','Air Filter','Cabin Filter','Coolant Flush','Transmission Fluid','Battery Check/Replace','Other'];
+let eventTypes = [
+  {value:'medical', emoji:'🏥', label:'Medical'},
+  {value:'vehicle', emoji:'🚗', label:'Vehicle'},
+  {value:'home',    emoji:'🏡', label:'Home'},
+  {value:'school',  emoji:'🏫', label:'School'},
+  {value:'general', emoji:'📌', label:'General'},
+  {value:'other',   emoji:'📎', label:'Other'},
+];
 
 const VEHICLE_COLORS = ['#1e3a8a','#1e40af','#134e4a','#14532d','#4c1d95','#7c2d12','#831843','#0f172a','#1f2937','#374151','#b45309','#b91c1c'];
+
+// ─── VEHICLE LOOKUP HELPERS ───────────────────────────────────
+function getVehicleForRecord(r) {
+  if (r.vehicleId) {
+    const v = appVehicles.find(v => v.id === r.vehicleId);
+    if (v) return v;
+  }
+  const exact = appVehicles.find(v => v.name === r.vehicle);
+  if (exact) return exact;
+  if (r.vehicle) {
+    const rn = r.vehicle.toLowerCase().trim();
+    const fuzzy = appVehicles.find(v => {
+      const vn = v.name.toLowerCase().trim();
+      return vn.includes(rn) || rn.includes(vn);
+    });
+    if (fuzzy) return fuzzy;
+  }
+  return null;
+}
+function autoRowVehicle(r) {
+  const v = getVehicleForRecord(r);
+  return (v && v.emoji ? v.emoji : '🚗') + ' ' + (v ? vehicleDisplayName(v) : (r.vehicle || '—'));
+}
 
 async function loadSettings(){
   try{
@@ -1205,6 +1245,7 @@ async function loadSettings(){
       if(d.members&&d.members.length) appMembers=d.members;
       if(d.homeCategories&&d.homeCategories.length) homeCategories=d.homeCategories;
       if(d.serviceTypes&&d.serviceTypes.length) serviceTypes=d.serviceTypes;
+      if(d.eventTypes&&d.eventTypes.length) eventTypes=d.eventTypes;
       if(d.authorizedUsers) appConfig.authorizedUsers=d.authorizedUsers;
     }
     applySettings();
@@ -1231,6 +1272,8 @@ function applySettings(){
   renderAdminMembers();
   renderAdminCategories();
   renderAdminServiceTypes();
+  renderAdminEventTypes();
+  rebuildEventTypeDropdown();
   renderMemberLegend();
   document.getElementById('adminVehicleCount').textContent=appVehicles.length+' Vehicle'+(appVehicles.length!==1?'s':'');
   document.getElementById('adminMemberCount').textContent=appMembers.length+' Member'+(appMembers.length!==1?'s':'');
@@ -1249,13 +1292,14 @@ async function saveSettings(){
     members:appMembers,
     homeCategories:homeCategories,
     serviceTypes:serviceTypes,
+    eventTypes:eventTypes,
     authorizedUsers:appConfig.authorizedUsers||[],
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
 }
 
 function rebuildVehicleDropdowns(){
-  const opts=appVehicles.map(v=>`<option value="${v.name}">${v.emoji} ${vehicleDisplayName(v)}</option>`).join('');
+  const opts=appVehicles.map(v=>`<option value="${v.id}">${v.emoji} ${vehicleDisplayName(v)}</option>`).join('');
   ['aVehicle'].forEach(id=>{const el=document.getElementById(id);if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
   const rfv=document.getElementById('rfVehicle');
   if(rfv){const cur=rfv.value;rfv.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)rfv.value=cur;}
@@ -1524,6 +1568,45 @@ async function removeService(s){
   toast('🗑 Service type removed');
 }
 
+function renderAdminEventTypes(){
+  const list=document.getElementById('adminEventTypeList');
+  if(!list) return;
+  list.innerHTML=eventTypes.map((t,i)=>`
+    <div class="tag-chip">${t.emoji} ${t.label}<button onclick="delEventType(${i})">×</button></div>`).join('');
+}
+
+function rebuildEventTypeDropdown(){
+  const el=document.getElementById('cType');
+  if(!el) return;
+  const cur=el.value;
+  el.innerHTML=eventTypes.map(t=>`<option value="${t.value}">${t.emoji} ${t.label}</option>`).join('');
+  if(cur) el.value=cur;
+}
+
+async function addEventType(){
+  const emoji=(document.getElementById('newEventTypeEmoji')&&document.getElementById('newEventTypeEmoji').value||'').trim()||'📌';
+  const label=(document.getElementById('newEventTypeLabel')&&document.getElementById('newEventTypeLabel').value||'').trim();
+  if(!label){toast('⚠️ Enter a label');return;}
+  const value=label.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  if(eventTypes.find(t=>t.value===value)){toast('⚠️ Already exists');return;}
+  eventTypes.push({value,emoji,label});
+  if(document.getElementById('newEventTypeLabel')) document.getElementById('newEventTypeLabel').value='';
+  if(document.getElementById('newEventTypeEmoji')) document.getElementById('newEventTypeEmoji').value='';
+  await saveSettings();
+  renderAdminEventTypes();
+  rebuildEventTypeDropdown();
+  toast('✅ Event type added');
+}
+
+async function delEventType(i){
+  if(!confirm('Remove this event type?')) return;
+  eventTypes.splice(i,1);
+  await saveSettings();
+  renderAdminEventTypes();
+  rebuildEventTypeDropdown();
+  toast('🗑 Event type removed');
+}
+
 // ─── DISPLAY NAMES & INITIALS ────────────────────────────────
 function getInitials(name, allNames) {
   if (!name) return '?';
@@ -1672,7 +1755,7 @@ auth.onAuthStateChanged(async user => {
       return;
     }
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appShell').style.display   = 'block';
+    document.getElementById('appShell').style.display = window.matchMedia('(max-width:640px)').matches ? 'flex' : 'block';
     document.getElementById('userName').textContent = user.displayName?.split(' ')[0]||user.email;
     document.getElementById('userAvatar').src = user.photoURL||'';
     applyRBAC(role);
@@ -1897,7 +1980,7 @@ function renderAuto() {
     <div class="stat-card"><div class="stat-icon-wrap green">💰</div><div><div class="stat-value" style="font-size:1.2rem">${totalSpend>0?'$'+totalSpend.toFixed(0):'—'}</div><div class="stat-label">Total Spend (w/HST)</div></div></div>`;
 
   document.getElementById('vehiclesGrid').innerHTML=appVehicles.map(v=>{
-      const vRecords=autoRecords.filter(r=>r.vehicle===v.name);
+      const vRecords=autoRecords.filter(r=>getVehicleForRecord(r)?.id===v.id);
       const grad=`linear-gradient(135deg,${v.color||'#1e3a8a'},${lightenColor(v.color||'#1e3a8a')})`;
       return `<div class="vehicle-card">
         <div class="vehicle-header" style="background:${grad}">
@@ -1916,7 +1999,7 @@ function renderAuto() {
 
   document.getElementById('autoBody').innerHTML=autoRecords.map(r=>`
     <tr>
-      <td><div class="td-main">${r.vehicle==='Nissan Rogue'?'🚙':'🚐'} ${r.vehicle}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
+      <td><div class="td-main">${autoRowVehicle(r)}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
       <td><div class="td-main">${r.service}</div></td>
       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
@@ -1947,7 +2030,8 @@ async function saveAuto() {
   const taxPct = parseFloat(document.getElementById('aTaxRate')?.value)||13;
   const totalOverride = parseFloat(document.getElementById('aTotalEdit')?.value)||null;
   const rec={
-    vehicle:document.getElementById('aVehicle').value,
+    vehicleId:document.getElementById('aVehicle').value,
+    vehicle:(appVehicles.find(v=>v.id===document.getElementById('aVehicle').value)||{}).name||document.getElementById('aVehicle').value,
     service:document.getElementById('aService').value,
     lastDate:document.getElementById('aLastDate').value,
     nextDate:document.getElementById('aNextDate').value,
@@ -1976,7 +2060,7 @@ function editAuto(id){
   document.getElementById('autoEditId').dataset.existingUrl=r.attachmentUrl||'';
   const aAllUrls=[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])];
   document.getElementById('autoEditId').dataset.existingUrls=JSON.stringify(aAllUrls);
-  document.getElementById('aVehicle').value=r.vehicle;
+  document.getElementById('aVehicle').value=r.vehicleId||(getVehicleForRecord(r)&&getVehicleForRecord(r).id)||r.vehicle;
   document.getElementById('aService').value=r.service;
   document.getElementById('aLastDate').value=r.lastDate||'';
   document.getElementById('aNextDate').value=r.nextDate||'';
@@ -2262,7 +2346,7 @@ function renderSummary(){
     </span></td><td><div class="td-main">${c}</div></td></tr>`).join('');
   // Dynamic vehicle spend rows
   const vehicleRows=appVehicles.map(v=>{
-    const vCost=autoRecords.filter(r=>r.vehicle===v.name).reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
+    const vCost=autoRecords.filter(r=>getVehicleForRecord(r)&&getVehicleForRecord(r).id===v.id).reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
     return `<tr><td><div class="td-main">${v.emoji||'🚗'} ${v.name}</div></td><td><div class="td-main">${vCost>0?'$'+vCost.toFixed(2):'$0'}</div></td></tr>`;
   }).join('');
   el.innerHTML=`
@@ -2417,18 +2501,4 @@ function closeModal(id){
   ['aKmBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
   ['aFilePreview','hFilePreview','aExistingFile','hExistingFile'].forEach(pid=>{const p=document.getElementById(pid);if(p)p.innerHTML='';});
   ['aTotalEdit','hTotalEdit'].forEach(eid=>{const el=document.getElementById(eid);if(el)el.dataset.manualOverride='';});
-  const aTax=document.getElementById('aTaxRate'); if(aTax) aTax.value='13';
-  const hTax=document.getElementById('hTaxRate'); if(hTax) hTax.value='13';
-  const hDurVal=document.getElementById('hDurVal'); if(hDurVal) hDurVal.value='3';
-  const hDurUnit=document.getElementById('hDurUnit'); if(hDurUnit) hDurUnit.value='months';
-}
-document.querySelectorAll('.modal-overlay').forEach(o=>{
-  o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); });
-});
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(o=>o.classList.remove('open')); });
-
-// ─── BOOT ────────────────────────────────────────
-calYear=NOW.getFullYear(); calMonth=NOW.getMonth();
-</script>
-</body>
-</html>
+  const aTax=document.getElementById('aTaxRate'); if(aTax) 
