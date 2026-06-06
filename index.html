@@ -465,23 +465,46 @@
 
     /* ── GLOBAL MOBILE FIXES ── */
     @media(max-width:640px){
-      html,body{overflow-x:hidden;width:100%;max-width:100vw;}
+      /* Only clip on body, NOT html — overflow-x:hidden on html breaks iOS scroll & position:fixed */
+      body{overflow-x:hidden;}
+
+      /* App-shell layout: fill viewport height, header top, nav bottom, main scrolls in between */
+      #appShell{
+        display:flex!important;
+        flex-direction:column;
+        height:100dvh;
+        height:100vh;
+        overflow:hidden;
+      }
+      header{
+        flex-shrink:0;
+        position:relative!important;
+        top:auto!important;
+      }
+      nav:not(.mobile-bottom-nav){display:none!important;}
+      main{
+        flex:1;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        padding:12px 12px 20px!important;
+        width:100%;
+        box-sizing:border-box;
+      }
+      .mobile-bottom-nav{
+        flex-shrink:0;
+        position:relative!important;
+        bottom:auto!important;
+        box-shadow:0 -4px 20px rgba(0,0,0,.08);
+      }
       .section-header h2{font-size:1.15rem;}
       .section-header p{font-size:.78rem;}
       .card{overflow:visible;}
-      /* Hide less critical table columns */
       .col-progress,.col-odo{display:none;}
-      /* Force single-column vehicles grid */
       .vehicles-grid{grid-template-columns:1fr!important;}
-      /* Report totals wrap nicely */
       .report-total-row{flex-wrap:wrap;}
-      /* Tighter calendar */
       .cal-grid{gap:1px;}
       .cal-day{border-width:1px;border-radius:5px;}
-      /* Table text smaller */
       td,th{font-size:.78rem;padding:8px 8px;}
-      /* Bottom nav always above content */
-      main{padding-bottom:84px!important;}
     }
     @media(max-width:380px){
       td,th{font-size:.72rem;padding:6px 5px;}
@@ -1754,6 +1777,9 @@ function showSection(id, btn) {
   document.getElementById(id).classList.add('active');
   document.querySelectorAll(`[onclick*="'${id}'"]`).forEach(b=>b.classList.add('active'));
   if(id==='reports') renderSummary();
+  // On mobile, scroll the main content area back to top when switching sections
+  const mainEl = document.querySelector('main');
+  if(mainEl && window.innerWidth <= 640) mainEl.scrollTop = 0;
 }
 
 // ─── HST / TAX CALCULATOR ────────────────────────────────────
