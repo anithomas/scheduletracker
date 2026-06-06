@@ -2501,4 +2501,9 @@ function closeModal(id){
   ['aKmBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
   ['aFilePreview','hFilePreview','aExistingFile','hExistingFile'].forEach(pid=>{const p=document.getElementById(pid);if(p)p.innerHTML='';});
   ['aTotalEdit','hTotalEdit'].forEach(eid=>{const el=document.getElementById(eid);if(el)el.dataset.manualOverride='';});
-  const aTax=document.getElementById('aTaxRate'); if(aTax) 
+  const aTax=document.getElementById('aTaxRate'); if(aTax&&!aTax.dataset.userSet) aTax.value=appConfig.defaultTaxRate;
+  const hTax=document.getElementById('hTaxRate'); if(hTax&&!hTax.dataset.userSet) hTax.value=appConfig.defaultTaxRate;
+}
+</script>
+</body>
+</html>
