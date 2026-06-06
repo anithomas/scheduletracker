@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <title>Family Household Tracker</title>
 
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1d4ed8" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Tracker" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+
   <script>
     const FIREBASE_CONFIG = {
       apiKey:            "AIzaSyC8ia7A7bExTCevqX-0CDSzJucsT12DDlk",
@@ -1728,8 +1737,17 @@ async function setUserRole(email, role) {
 // ─── AUTH ─────────────────────────────────────────────────────
 function signInWithGoogle() {
   const p = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(p).catch(e => alert('Sign-in error: '+e.message));
+  p.addScope('email');
+  p.addScope('profile');
+  // Native (Capacitor) WebView blocks popups — use redirect instead
+  if (window.Capacitor) {
+    auth.signInWithRedirect(p).catch(e => alert('Sign-in error: ' + e.message));
+  } else {
+    auth.signInWithPopup(p).catch(e => alert('Sign-in error: ' + e.message));
+  }
 }
+// Handle redirect result on app load (native sign-in completes here)
+auth.getRedirectResult().catch(() => {});
 function signOut() {
   if (!confirm('Sign out?')) return;
   unsubs.forEach(u=>u()); unsubs=[];
@@ -2495,6 +2513,15 @@ function closeModal(id){
   const aTax=document.getElementById('aTaxRate'); if(aTax&&!aTax.dataset.userSet) aTax.value=appConfig.defaultTaxRate;
   const hTax=document.getElementById('hTaxRate'); if(hTax&&!hTax.dataset.userSet) hTax.value=appConfig.defaultTaxRate;
 }
+</script>
+
+<script>
+  // Register service worker — required for PWA installability on Android
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>

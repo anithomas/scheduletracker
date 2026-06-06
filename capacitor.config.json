@@ -1,0 +1,20 @@
+{
+  "appId": "ca.logicmanse.tracker",
+  "appName": "Family Tracker",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "allowNavigation": [
+      "*.googleapis.com",
+      "*.google.com",
+      "*.firebase.google.com",
+      "*.firebaseio.com",
+      "*.firebaseapp.com",
+      "accounts.google.com"
+    ]
+  }
+}
