@@ -65,6 +65,7 @@
 
     /* HEADER */
     #appShell{display:none;}
+    #appShell.app-visible{display:block;}
     header{background:linear-gradient(135deg,var(--gray-900) 0%,#1d4ed8 60%,var(--indigo) 100%);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.2);}
     .header-brand{display:flex;align-items:center;gap:10px;}
     .header-brand .logo{font-size:1.4rem;}
@@ -325,23 +326,73 @@
       .stats-grid{grid-template-columns:repeat(2,1fr);}
     }
 
-    /* RESPONSIVE MOBILE */
+    /* ── RESPONSIVE MOBILE — full-viewport flex architecture ── */
     @media(max-width:640px){
-      header{padding:0 14px;height:52px;}
+      /* App shell locks to viewport so each section scrolls independently */
+      #appShell.app-visible{
+        position:fixed!important;
+        inset:0;
+        display:flex!important;
+        flex-direction:column;
+        overflow:hidden;
+        background:var(--gray-50);
+        z-index:1;
+      }
+
+      header{
+        flex-shrink:0;
+        padding:0 14px;
+        height:52px;
+        position:relative;
+        top:auto;
+      }
       .header-brand h1{font-size:.88rem;}
       .user-name,.sync-badge{display:none;}
       nav{display:none;}
 
-      /* Bottom nav */
-      .mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--gray-200);z-index:50;box-shadow:0 -4px 20px rgba(0,0,0,.08);padding-bottom:env(safe-area-inset-bottom);}
+      /* Main is the scroll-host — each section fills it absolutely */
+      main{
+        flex:1;
+        min-height:0;
+        position:relative;
+        overflow:hidden;
+        padding:0;
+        max-width:none;
+        margin:0;
+      }
+
+      /* Each section is a full-height independent scroll container */
+      .section{
+        position:absolute;
+        inset:0;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        overscroll-behavior:contain;
+        padding:12px 12px 16px;
+        display:none;
+      }
+      .section.active{display:block;}
+
+      /* Bottom nav — in-flow, never overlaps content */
+      .mobile-bottom-nav{
+        display:flex;
+        flex-shrink:0;
+        position:relative;
+        background:#fff;
+        border-top:1px solid var(--gray-200);
+        box-shadow:0 -4px 20px rgba(0,0,0,.08);
+        padding-bottom:env(safe-area-inset-bottom);
+        z-index:10;
+      }
       .mobile-bottom-nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 6px;border:none;background:none;font-size:.58rem;color:var(--gray-400);gap:3px;cursor:pointer;font-family:inherit;font-weight:600;min-height:54px;-webkit-tap-highlight-color:transparent;letter-spacing:.2px;}
       .mobile-bottom-nav button .nav-icon{font-size:1.35rem;}
       .mobile-bottom-nav button.active{color:var(--blue);}
 
-      main{padding:12px 12px 76px;}
+      /* Toast above bottom nav */
+      #toast{bottom:calc(64px + env(safe-area-inset-bottom));}
 
       /* Modals slide up from bottom */
-      .modal-overlay{padding:0;align-items:flex-end;}
+      .modal-overlay{padding:0;align-items:flex-end;z-index:300;}
       .modal{border-radius:20px 20px 0 0;padding:24px 18px 32px;width:100%;max-width:100%;max-height:92vh;}
       .form-row{grid-template-columns:1fr;}
 
@@ -1721,20 +1772,20 @@ auth.onAuthStateChanged(async user => {
     await loadSettingsForAuth();
     const role = await checkUserAccess(user);
     if (role === 'denied') {
-      document.getElementById('appShell').style.display = 'none';
+      document.getElementById('appShell').classList.remove('app-visible');
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('accessDenied').style.display = 'flex';
       return;
     }
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appShell').style.display = 'block';
+    document.getElementById('appShell').classList.add('app-visible');
     document.getElementById('userName').textContent = user.displayName?.split(' ')[0]||user.email;
     document.getElementById('userAvatar').src = user.photoURL||'';
     applyRBAC(role);
     startListeners();
     loadSettings();
   } else {
-    document.getElementById('appShell').style.display   = 'none';
+    document.getElementById('appShell').classList.remove('app-visible');
     document.getElementById('loginScreen').style.display = 'flex';
   }
 });
@@ -1832,8 +1883,13 @@ function showSection(id, btn) {
   document.getElementById(id).classList.add('active');
   document.querySelectorAll(`[onclick*="'${id}'"]`).forEach(b=>b.classList.add('active'));
   if(id==='reports') renderSummary();
-  // Scroll to top when switching sections (window is the scroll container, not main)
-  window.scrollTo(0, 0);
+  // On mobile each section is its own scroll container — reset it to top
+  if (window.innerWidth <= 640) {
+    const el = document.getElementById(id);
+    if (el) el.scrollTop = 0;
+  } else {
+    window.scrollTo(0, 0);
+  }
 }
 
 // ─── HST / TAX CALCULATOR ────────────────────────────────────
