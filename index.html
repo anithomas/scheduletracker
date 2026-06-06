@@ -462,6 +462,64 @@
       .config-grid{grid-template-columns:1fr;}
       .admin-hero{padding:22px 18px;}
     }
+
+    /* ── GLOBAL MOBILE FIXES ── */
+    @media(max-width:640px){
+      html,body{overflow-x:hidden;width:100%;max-width:100vw;}
+      .section-header h2{font-size:1.15rem;}
+      .section-header p{font-size:.78rem;}
+      .card{overflow:visible;}
+      /* Hide less critical table columns */
+      .col-progress,.col-odo{display:none;}
+      /* Force single-column vehicles grid */
+      .vehicles-grid{grid-template-columns:1fr!important;}
+      /* Report totals wrap nicely */
+      .report-total-row{flex-wrap:wrap;}
+      /* Tighter calendar */
+      .cal-grid{gap:1px;}
+      .cal-day{border-width:1px;border-radius:5px;}
+      /* Table text smaller */
+      td,th{font-size:.78rem;padding:8px 8px;}
+      /* Bottom nav always above content */
+      main{padding-bottom:84px!important;}
+    }
+    @media(max-width:380px){
+      td,th{font-size:.72rem;padding:6px 5px;}
+    }
+
+    /* ── RBAC VISIBILITY ── */
+    .role-viewer .rbac-add,
+    .role-viewer .btn-edit,
+    .role-viewer .btn-del  { display:none!important; }
+    .role-contributor .rbac-admin,
+    .role-viewer      .rbac-admin { display:none!important; }
+
+    /* ── ROLE BADGE ── */
+    .role-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+    .role-badge.contributor{background:rgba(16,185,129,.15);color:#059669;}
+    .role-badge.viewer{background:rgba(148,163,184,.2);color:#64748b;}
+    .role-badge.denied{background:rgba(239,68,68,.15);color:#ef4444;}
+
+    /* ── ACCESS DENIED ── */
+    #accessDenied{display:none;min-height:100vh;background:linear-gradient(135deg,#1e293b,#7f1d1d);align-items:center;justify-content:center;flex-direction:column;}
+    .denied-card{background:rgba(255,255,255,.08);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);border-radius:24px;padding:44px 36px;text-align:center;max-width:380px;width:90%;}
+    .denied-icon{font-size:3.2rem;margin-bottom:12px;}
+    .denied-card h2{font-size:1.3rem;font-weight:800;color:#fff;margin-bottom:8px;}
+    .denied-card p{color:rgba(255,255,255,.65);font-size:.86rem;margin-bottom:24px;}
+
+    /* ── USER ACCESS MANAGEMENT ── */
+    .user-access-list{display:flex;flex-direction:column;gap:8px;}
+    .user-access-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--gray-100);border-radius:10px;transition:box-shadow .15s;flex-wrap:nowrap;}
+    .user-access-item:hover{box-shadow:var(--shadow-sm);}
+    .ua-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0;}
+    .ua-info{flex:1;min-width:0;}
+    .ua-name{font-size:.86rem;font-weight:700;color:var(--gray-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ua-email{font-size:.71rem;color:var(--gray-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .role-select{padding:5px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:.78rem;font-weight:600;font-family:inherit;background:#fff;cursor:pointer;outline:none;color:var(--gray-700);}
+    .role-select:focus{border-color:var(--blue);}
+    .add-user-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+    .add-user-row input{flex:1;min-width:160px;}
+    .rbac-note{font-size:.76rem;color:var(--gray-500);margin-bottom:12px;line-height:1.5;}
   </style>
 </head>
 <body>
@@ -492,6 +550,16 @@
   </div>
 </div>
 
+<!-- ACCESS DENIED -->
+<div id="accessDenied">
+  <div class="denied-card">
+    <div class="denied-icon">🚫</div>
+    <h2>Access Denied</h2>
+    <p id="deniedMsg">Your account has been blocked by an administrator.</p>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="auth.signOut()">← Sign out</button>
+  </div>
+</div>
+
 <!-- APP -->
 <div id="appShell">
   <header>
@@ -507,6 +575,7 @@
       <div class="user-chip">
         <img class="avatar" id="userAvatar" src="" alt="" />
         <span class="user-name" id="userName"></span>
+        <span class="role-badge" id="roleBadge" style="display:none"></span>
         <button class="sign-out-btn" onclick="signOut()">Sign out</button>
       </div>
     </div>
@@ -517,7 +586,7 @@
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> Home Schedules</button>
     <button onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
-    <button onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
+    <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
   </nav>
 
   <main>
@@ -533,13 +602,13 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">📋 All Service Records</div>
-          <button class="btn btn-primary" onclick="openModal('autoModal')">+ Add Record</button>
+          <button class="btn btn-primary rbac-add" onclick="openModal('autoModal')">+ Add Record</button>
         </div>
         <div class="table-wrap">
           <table>
             <thead><tr>
               <th>Vehicle</th><th>Service</th><th>Last Done</th>
-              <th>Next Due</th><th>Odometer (km)</th><th>Cost (w/ Tax)</th><th>Status</th><th>Progress</th><th></th>
+              <th>Next Due</th><th class="col-odo">Odometer (km)</th><th>Cost (w/ Tax)</th><th>Status</th><th class="col-progress">Progress</th><th></th>
             </tr></thead>
             <tbody id="autoBody"></tbody>
           </table>
@@ -556,13 +625,13 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">🔧 Maintenance Items</div>
-          <button class="btn btn-primary" onclick="openModal('homeModal')">+ Add Item</button>
+          <button class="btn btn-primary rbac-add" onclick="openModal('homeModal')">+ Add Item</button>
         </div>
         <div class="table-wrap">
           <table>
             <thead><tr>
               <th>Item</th><th>Category</th><th>Interval</th>
-              <th>Last Done</th><th>Next Due</th><th>Cost (w/ Tax)</th><th>Status</th><th>Progress</th><th></th>
+              <th>Last Done</th><th>Next Due</th><th>Cost (w/ Tax)</th><th>Status</th><th class="col-progress">Progress</th><th></th>
             </tr></thead>
             <tbody id="homeBody"></tbody>
           </table>
@@ -584,7 +653,7 @@
             <button class="cal-month-btn" onclick="changeMonth(1)">&#8250;</button>
           </div>
           <button class="cal-today-btn" onclick="goToday()">Today</button>
-          <button class="btn btn-primary" style="margin-left:8px" onclick="openModal('calModal')">+ Add Event</button>
+          <button class="btn btn-primary rbac-add" style="margin-left:8px" onclick="openModal('calModal')">+ Add Event</button>
         </div>
         <div class="member-legend" id="calMemberLegend">
           <span style="font-size:.73rem;font-weight:700;color:var(--gray-500);margin-right:4px;">BY MEMBER:</span>
@@ -839,6 +908,30 @@
           </div>
         </div>
       </div>
+      <!-- USER ACCESS MANAGEMENT -->
+      <div class="config-grid rbac-admin" style="margin-top:4px">
+        <div class="config-card" style="grid-column:1/-1">
+          <div class="config-card-header">
+            <div class="config-card-title"><div class="config-card-icon ci-rose">🔐</div> User Access &amp; Roles</div>
+            <span id="userAccessSaved" class="save-indicator">✅ Saved</span>
+          </div>
+          <div class="config-card-body">
+            <p class="rbac-note">Control who can sign in and what they can do.<br>
+              <strong>👑 Admin</strong> – full access &nbsp;|&nbsp; <strong>✏️ Contributor</strong> – add/edit/view, no admin &nbsp;|&nbsp; <strong>👁 Viewer</strong> – read-only &nbsp;|&nbsp; <strong>🚫 Denied</strong> – blocked</p>
+            <div class="user-access-list" id="userAccessList"></div>
+            <div class="add-user-row">
+              <input type="email" id="newUserEmail" placeholder="user@gmail.com" class="tag-add-input" />
+              <select id="newUserRole" class="role-select">
+                <option value="contributor">✏️ Contributor</option>
+                <option value="viewer">👁 Viewer</option>
+                <option value="admin">👑 Admin</option>
+                <option value="denied">🚫 Denied</option>
+              </select>
+              <button class="btn btn-primary" onclick="addAuthorizedUser()" style="white-space:nowrap">+ Add User</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div><!-- /admin -->
 
   </main>
@@ -848,7 +941,7 @@
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span>Home</button>
     <button onclick="showSection('calendar',this)"><span class="nav-icon">📅</span>Calendar</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span>Reports</button>
-    <button onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
+    <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
   </nav>
 </div>
 
@@ -859,6 +952,7 @@
     <input type="hidden" id="vehicleCfgId" />
     <div class="form-row">
       <div class="form-group"><label>Display Name</label><input type="text" id="vcName" placeholder="e.g. Nissan Rogue" /></div>
+      <div class="form-group"><label>Nickname (short)</label><input type="text" id="vcNickname" placeholder="e.g. Rogue" /></div>
       <div class="form-group"><label>Emoji / Icon</label><input type="text" id="vcEmoji" placeholder="🚙" maxlength="2" style="font-size:1.2rem;text-align:center" /></div>
       <div class="form-group"><label>Year</label><input type="number" id="vcYear" placeholder="e.g. 2019" min="1990" max="2035" /></div>
       <div class="form-group"><label>Make</label><input type="text" id="vcMake" placeholder="e.g. Nissan" /></div>
@@ -885,7 +979,8 @@
     <div class="modal-title"><div class="title-icon cal">👤</div> Family Member</div>
     <input type="hidden" id="memberCfgId" />
     <div class="form-row">
-      <div class="form-group" style="grid-column:1/-1"><label>Member Name</label><input type="text" id="mcName" placeholder="e.g. Anju" /></div>
+      <div class="form-group"><label>Full Name</label><input type="text" id="mcName" placeholder="e.g. Anju Thomas" /></div>
+      <div class="form-group"><label>Nickname (optional)</label><input type="text" id="mcNickname" placeholder="e.g. Anju" /></div>
     </div>
     <div class="form-group">
       <label>Color</label>
@@ -1056,7 +1151,9 @@ let appConfig = {
   logoEmoji: '🏠',
   defaultTaxRate: 13,
   currency: '$',
+  authorizedUsers: [],
 };
+let currentUserRole = 'admin';
 let appVehicles = [
   {id:'v1',name:'Nissan Rogue',make:'Nissan',model:'Rogue',trim:'SV AWD 2.5L',year:'2019',emoji:'🚙',color:'#1e3a8a',plate:'',vin:''},
   {id:'v2',name:'Highlander',make:'Toyota',model:'Highlander',trim:'XLE V6 3.5L',year:'2020',emoji:'🚐',color:'#134e4a',plate:'',vin:''},
@@ -1085,6 +1182,7 @@ async function loadSettings(){
       if(d.members&&d.members.length) appMembers=d.members;
       if(d.homeCategories&&d.homeCategories.length) homeCategories=d.homeCategories;
       if(d.serviceTypes&&d.serviceTypes.length) serviceTypes=d.serviceTypes;
+      if(d.authorizedUsers) appConfig.authorizedUsers=d.authorizedUsers;
     }
     applySettings();
   } catch(e){ console.warn('Settings load error',e); applySettings(); }
@@ -1113,6 +1211,7 @@ function applySettings(){
   renderMemberLegend();
   document.getElementById('adminVehicleCount').textContent=appVehicles.length+' Vehicle'+(appVehicles.length!==1?'s':'');
   document.getElementById('adminMemberCount').textContent=appMembers.length+' Member'+(appMembers.length!==1?'s':'');
+  if(currentUserRole==='admin') renderUserAccess();
   const aTax=document.getElementById('aTaxRate'); if(aTax&&!aTax.dataset.userSet) aTax.value=appConfig.defaultTaxRate;
   const hTax=document.getElementById('hTaxRate'); if(hTax&&!hTax.dataset.userSet) hTax.value=appConfig.defaultTaxRate;
 }
@@ -1127,19 +1226,20 @@ async function saveSettings(){
     members:appMembers,
     homeCategories:homeCategories,
     serviceTypes:serviceTypes,
+    authorizedUsers:appConfig.authorizedUsers||[],
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
 }
 
 function rebuildVehicleDropdowns(){
-  const opts=appVehicles.map(v=>`<option value="${v.name}">${v.emoji} ${v.name}</option>`).join('');
+  const opts=appVehicles.map(v=>`<option value="${v.name}">${v.emoji} ${vehicleDisplayName(v)}</option>`).join('');
   ['aVehicle'].forEach(id=>{const el=document.getElementById(id);if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
   const rfv=document.getElementById('rfVehicle');
   if(rfv){const cur=rfv.value;rfv.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)rfv.value=cur;}
 }
 
 function rebuildMemberDropdowns(){
-  const opts=appMembers.map(m=>`<option value="${m.name}">${m.name}</option>`).join('');
+  const opts=appMembers.map(m=>`<option value="${m.name}">${memberDisplayName(m)}</option>`).join('');
   const allOpt='<option value="All">👨‍👩‍👧‍👦 All / Family</option>';
   const cMem=document.getElementById('cMember');
   if(cMem){const cur=cMem.value;cMem.innerHTML=opts+allOpt;if(cur)cMem.value=cur;}
@@ -1163,7 +1263,7 @@ function renderMemberLegend(){
   const legend=document.getElementById('calMemberLegend');
   if(!legend) return;
   legend.innerHTML='<span style="font-size:.73rem;font-weight:700;color:var(--gray-500);margin-right:4px;">BY MEMBER:</span>'+
-    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${m.color}"></div>${m.name}</div>`).join('')+
+    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${m.color}"></div>${memberDisplayName(m)}</div>`).join('')+
     '<div class="legend-item"><div class="legend-dot" style="background:var(--m-all)"></div>All/Family</div>';
 }
 
@@ -1200,7 +1300,7 @@ function renderAdminVehicles(){
       <div class="vehicle-config-banner" style="background:linear-gradient(135deg,${v.color||'#1e3a8a'},${lightenColor(v.color||'#1e3a8a')})">
         <span style="font-size:1.7rem">${v.emoji||'🚗'}</span>
         <div class="vehicle-config-info">
-          <h4>${v.name}</h4>
+          <h4>${vehicleDisplayName(v)}</h4>
           <p>${[v.year,v.make,v.model,v.trim].filter(Boolean).join(' · ')}</p>
         </div>
         <div class="vehicle-config-actions">
@@ -1225,6 +1325,7 @@ function openAdminVehicleModal(id){
   const v=id?appVehicles.find(x=>x.id===id):null;
   document.getElementById('vehicleCfgId').value=id||'';
   document.getElementById('vcName').value=v?.name||'';
+  if(document.getElementById('vcNickname')) document.getElementById('vcNickname').value=v?.nickname||'';
   document.getElementById('vcEmoji').value=v?.emoji||'🚗';
   document.getElementById('vcYear').value=v?.year||'';
   document.getElementById('vcMake').value=v?.make||'';
@@ -1247,9 +1348,11 @@ function selectVehicleColor(c,btn){
 
 async function saveAdminVehicle(){
   const id=document.getElementById('vehicleCfgId').value;
+  const _vNick=document.getElementById('vcNickname')?.value.trim()||'';
   const v={
     id:id||'v'+Date.now(),
     name:document.getElementById('vcName').value.trim(),
+    nickname:_vNick,
     emoji:document.getElementById('vcEmoji').value||'🚗',
     year:document.getElementById('vcYear').value,
     make:document.getElementById('vcMake').value.trim(),
@@ -1282,11 +1385,12 @@ function renderAdminMembers(){
   const list=document.getElementById('adminMemberList');
   if(!list) return;
   if(!appMembers.length){list.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-icon">👥</div><p>No members configured</p></div>';return;}
+  const _allNames=appMembers.map(m=>m.name);
   list.innerHTML=appMembers.map(m=>`
     <div class="member-config-item">
-      <div class="member-swatch" style="background:${m.color}">${m.name[0]||'?'}</div>
+      <div class="member-swatch" style="background:${m.color}">${getInitials(m.name,_allNames)}</div>
       <div>
-        <div class="member-config-name">${m.name}</div>
+        <div class="member-config-name">${m.name}${m.nickname?` <span style="font-size:.72rem;color:var(--gray-400)">(${m.nickname})</span>`:''}</div>
         <div class="member-config-color">${m.color}</div>
       </div>
       <div class="btn-actions" style="margin-left:auto">
@@ -1300,6 +1404,7 @@ function openAdminMemberModal(id){
   const m=id?appMembers.find(x=>x.id===id):null;
   document.getElementById('memberCfgId').value=id||'';
   document.getElementById('mcName').value=m?.name||'';
+  if(document.getElementById('mcNickname')) document.getElementById('mcNickname').value=m?.nickname||'';
   document.getElementById('mcColor').value=m?.color||MEMBER_COLORS[0];
   document.getElementById('memberColorPreview').style.background=m?.color||MEMBER_COLORS[0];
   document.getElementById('mcColorGrid').innerHTML=MEMBER_COLORS.map(c=>
@@ -1317,7 +1422,8 @@ function selectMemberColor(c,btn){
 
 async function saveAdminMember(){
   const id=document.getElementById('memberCfgId').value;
-  const m={id:id||'m'+Date.now(),name:document.getElementById('mcName').value.trim(),color:document.getElementById('mcColor').value||MEMBER_COLORS[0]};
+  const _nick=document.getElementById('mcNickname')?.value.trim()||'';
+  const m={id:id||'m'+Date.now(),name:document.getElementById('mcName').value.trim(),nickname:_nick,color:document.getElementById('mcColor').value||MEMBER_COLORS[0]};
   if(!m.name){toast('⚠️ Name is required');return;}
   if(id){const i=appMembers.findIndex(x=>x.id===id);if(i>-1)appMembers[i]=m;}
   else appMembers.push(m);
@@ -1395,6 +1501,131 @@ async function removeService(s){
   toast('🗑 Service type removed');
 }
 
+// ─── DISPLAY NAMES & INITIALS ────────────────────────────────
+function getInitials(name, allNames) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
+  const first = parts[0][0].toUpperCase();
+  const last  = parts[parts.length-1];
+  const def   = first + last[0].toUpperCase();
+  // Conflict check: another member has the same default initials?
+  const conflict = (allNames||[]).some(n => {
+    if (n === name) return false;
+    const p = n.trim().split(/\s+/).filter(Boolean);
+    return p.length > 1 && (p[0][0]+p[p.length-1][0]).toUpperCase() === def;
+  });
+  if (conflict) return (last[last.length-1] + first).toUpperCase(); // e.g. nA
+  return def;
+}
+function memberDisplayName(m) { return (m.nickname||'').trim() || m.name; }
+function vehicleDisplayName(v) { return (v.nickname||'').trim() || v.name; }
+
+// ─── RBAC ─────────────────────────────────────────────────────
+async function loadSettingsForAuth() {
+  try {
+    const doc = await db.collection('settings').doc('config').get();
+    if (doc.exists && doc.data().authorizedUsers) appConfig.authorizedUsers = doc.data().authorizedUsers;
+  } catch(e) {}
+}
+
+async function checkUserAccess(user) {
+  const users = appConfig.authorizedUsers || [];
+  if (!users.length) {
+    // Bootstrap: first user becomes admin
+    const entry = {email:user.email, name:user.displayName||user.email, role:'admin', addedAt:new Date().toISOString()};
+    appConfig.authorizedUsers = [entry];
+    try { await db.collection('settings').doc('config').set({authorizedUsers:[entry]},{merge:true}); } catch(e){}
+    return 'admin';
+  }
+  const entry = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
+  return entry ? (entry.role||'viewer') : 'viewer';
+}
+
+function applyRBAC(role) {
+  currentUserRole = role;
+  const shell = document.getElementById('appShell');
+  shell.classList.remove('role-admin','role-contributor','role-viewer','role-denied');
+  shell.classList.add('role-' + role);
+  const badge = document.getElementById('roleBadge');
+  if (badge) {
+    if (role !== 'admin') { badge.textContent = role; badge.className = 'role-badge ' + role; badge.style.display = ''; }
+    else badge.style.display = 'none';
+  }
+  // If contributor/viewer is on admin section, redirect
+  if (role !== 'admin') {
+    const adminEl = document.getElementById('admin');
+    if (adminEl?.classList.contains('active')) showSection('auto', document.querySelector('nav button'));
+  }
+}
+
+function renderUserAccess() {
+  const list = document.getElementById('userAccessList');
+  if (!list) return;
+  const users = appConfig.authorizedUsers || [];
+  if (!users.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">👤</div><p>No users yet</p></div>';
+    return;
+  }
+  const allNames = users.map(u => u.name||u.email);
+  const COLORS = ['#3b82f6','#ec4899','#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316'];
+  const self = auth.currentUser?.email?.toLowerCase();
+  list.innerHTML = users.map((u,i) => {
+    const initials = getInitials(u.name||u.email, allNames);
+    const isSelf = self && u.email.toLowerCase()===self;
+    const selfAdmin = isSelf && u.role==='admin';
+    return `<div class="user-access-item">
+      <div class="ua-avatar" style="background:${COLORS[i%COLORS.length]}">${initials}</div>
+      <div class="ua-info">
+        <div class="ua-name">${u.name||u.email}${isSelf?' <span style="font-size:.68rem;opacity:.6">(you)</span>':''}</div>
+        <div class="ua-email">${u.email}</div>
+      </div>
+      <select class="role-select" onchange="setUserRole('${u.email}',this.value)" ${selfAdmin?'disabled title="Cannot demote yourself as last admin"':''}>
+        <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
+        <option value="contributor" ${u.role==='contributor'?'selected':''}>✏️ Contributor</option>
+        <option value="viewer" ${u.role==='viewer'?'selected':''}>👁 Viewer</option>
+        <option value="denied" ${u.role==='denied'?'selected':''}>🚫 Denied</option>
+      </select>
+      ${!selfAdmin?`<button class="btn-icon btn-del" onclick="removeAuthorizedUser('${u.email}')" title="Remove">🗑</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function addAuthorizedUser() {
+  const email = (document.getElementById('newUserEmail').value||'').trim().toLowerCase();
+  const role  = document.getElementById('newUserRole').value;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('⚠️ Enter a valid email'); return; }
+  const users = appConfig.authorizedUsers || [];
+  if (users.find(u=>u.email.toLowerCase()===email)) { toast('⚠️ User already in list'); return; }
+  users.push({email, name:email.split('@')[0], role, addedAt:new Date().toISOString()});
+  appConfig.authorizedUsers = users;
+  await saveSettings();
+  renderUserAccess();
+  document.getElementById('newUserEmail').value='';
+  toast('✅ User added');
+}
+
+async function removeAuthorizedUser(email) {
+  if (!confirm('Remove this user?')) return;
+  const users = appConfig.authorizedUsers||[];
+  const admins = users.filter(u=>u.role==='admin');
+  if (admins.length===1 && admins[0].email.toLowerCase()===email.toLowerCase()) { toast('⚠️ Cannot remove last admin'); return; }
+  appConfig.authorizedUsers = users.filter(u=>u.email.toLowerCase()!==email.toLowerCase());
+  await saveSettings(); renderUserAccess(); toast('🗑 User removed');
+}
+
+async function setUserRole(email, role) {
+  const users = appConfig.authorizedUsers||[];
+  if (role!=='admin') {
+    const admins=users.filter(u=>u.role==='admin');
+    const target=users.find(u=>u.email.toLowerCase()===email.toLowerCase());
+    if (admins.length===1 && target?.role==='admin') { toast('⚠️ Cannot remove last admin role'); return; }
+  }
+  const u=users.find(u=>u.email.toLowerCase()===email.toLowerCase());
+  if (u) { u.role=role; u.updatedAt=new Date().toISOString(); }
+  await saveSettings(); renderUserAccess(); toast('✅ Role updated');
+}
+
 // ─── AUTH ─────────────────────────────────────────────────────
 function signInWithGoogle() {
   const p = new firebase.auth.GoogleAuthProvider();
@@ -1405,13 +1636,23 @@ function signOut() {
   unsubs.forEach(u=>u()); unsubs=[];
   auth.signOut();
 }
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
   document.getElementById('appLoading').style.display = 'none';
+  document.getElementById('accessDenied').style.display = 'none';
   if (user) {
+    await loadSettingsForAuth();
+    const role = await checkUserAccess(user);
+    if (role === 'denied') {
+      document.getElementById('appShell').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('accessDenied').style.display = 'flex';
+      return;
+    }
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').style.display   = 'block';
     document.getElementById('userName').textContent = user.displayName?.split(' ')[0]||user.email;
     document.getElementById('userAvatar').src = user.photoURL||'';
+    applyRBAC(role);
     startListeners();
     loadSettings();
   } else {
@@ -1635,7 +1876,7 @@ function renderAuto() {
       return `<div class="vehicle-card">
         <div class="vehicle-header" style="background:${grad}">
           <div class="vehicle-emoji">${v.emoji||'🚗'}</div>
-          <div class="vehicle-info"><h3>${v.name}</h3><p>${vRecords.length} service items${v.trim?' · '+v.trim:''}</p></div>
+          <div class="vehicle-info"><h3>${vehicleDisplayName(v)}</h3><p>${vRecords.length} service items${v.trim?' · '+v.trim:''}</p></div>
         </div>
         <div class="vehicle-body">
           ${vRecords.slice(0,4).map(r=>`
@@ -1656,7 +1897,7 @@ function renderAuto() {
       <td><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
       <td>${costWithHst(r.cost, r.taxRate)}</td>
       <td>${statusBadge(r.nextDate)}</td>
-      <td style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
+      <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="Receipt ${i+1}">📎</a>`).join('')}
         <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
@@ -1746,7 +1987,7 @@ function renderHome(){
       <td>${fmt(h.nextDate)}</td>
       <td>${costWithHst(h.cost, h.taxRate)}</td>
       <td>${statusBadge(h.nextDate)}</td>
-      <td style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
+      <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="Receipt ${i+1}">📎</a>`).join('')}
         <button class="btn-icon btn-done" onclick="markDone('${h.id}')" title="Mark done">✅</button>
