@@ -1832,9 +1832,8 @@ function showSection(id, btn) {
   document.getElementById(id).classList.add('active');
   document.querySelectorAll(`[onclick*="'${id}'"]`).forEach(b=>b.classList.add('active'));
   if(id==='reports') renderSummary();
-  // On mobile, scroll the main content area back to top when switching sections
-  const mainEl = document.querySelector('main');
-  if(mainEl && window.innerWidth <= 640) mainEl.scrollTop = 0;
+  // Scroll to top when switching sections (window is the scroll container, not main)
+  window.scrollTo(0, 0);
 }
 
 // ─── HST / TAX CALCULATOR ────────────────────────────────────
