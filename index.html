@@ -326,78 +326,41 @@
       .stats-grid{grid-template-columns:repeat(2,1fr);}
     }
 
-    /* ── RESPONSIVE MOBILE — full-viewport flex architecture ── */
+    /* ── RESPONSIVE MOBILE — sticky top nav, natural page scroll ── */
     @media(max-width:640px){
-      /* App shell locks to the VISIBLE viewport — no inset:0 (it extends behind Android chrome) */
-      #appShell.app-visible{
-        position:fixed!important;
-        top:0!important;
-        left:0!important;
-        right:0!important;
-        bottom:auto!important;          /* never use bottom:0 — hides behind Android chrome */
-        width:100%!important;
-        height:100vh!important;                   /* legacy fallback */
-        height:-webkit-fill-available!important;  /* Chrome/Android: available height only */
-        height:100dvh!important;                  /* modern: dynamic viewport, excludes chrome */
-        display:flex!important;
-        flex-direction:column!important;
-        overflow:hidden!important;
-        background:var(--gray-50);
-        z-index:1;
-      }
-
+      /* Header stays sticky (position:sticky from global CSS) — just shrink it */
       header{
-        flex-shrink:0;
         padding:0 14px;
         height:52px;
-        position:relative;
-        top:auto;
       }
       .header-brand h1{font-size:.88rem;}
       .user-name,.sync-badge{display:none;}
-      nav{display:none;}
 
-      /* Main is the scroll-host — each section fills it absolutely */
+      /* Desktop nav stays visible — compact buttons, horizontally scrollable */
+      nav{
+        top:52px;    /* match mobile header height */
+        padding:0 6px;
+        gap:0;
+      }
+      nav button{
+        padding:9px 10px;
+        font-size:.74rem;
+        gap:3px;
+      }
+      nav button .nav-icon{font-size:.85rem;}
+
+      /* Bottom nav never shown on mobile — top nav handles all navigation */
+      .mobile-bottom-nav{display:none!important;}
+
+      /* Main — normal block flow, page scrolls naturally */
       main{
-        flex:1;
-        min-height:0;
-        position:relative;
-        overflow:hidden;
-        padding:0;
+        padding:12px 12px 32px;
         max-width:none;
         margin:0;
       }
 
-      /* Each section is a full-height independent scroll container */
-      .section{
-        position:absolute;
-        inset:0;
-        overflow-y:auto;
-        -webkit-overflow-scrolling:touch;
-        overscroll-behavior:contain;
-        padding:12px 12px 16px;
-        display:none;
-      }
-      .section.active{display:block;}
-
-      /* Bottom nav — in-flow at the bottom of the flex column, always above browser chrome */
-      .mobile-bottom-nav{
-        display:flex;
-        flex-shrink:0;
-        position:relative;
-        background:#fff;
-        border-top:1px solid var(--gray-200);
-        box-shadow:0 -4px 20px rgba(0,0,0,.08);
-        /* safe-area-inset-bottom handles iOS notch + Android gesture bar */
-        padding-bottom:max(env(safe-area-inset-bottom,0px), 4px);
-        z-index:10;
-      }
-      .mobile-bottom-nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 6px;border:none;background:none;font-size:.58rem;color:var(--gray-400);gap:3px;cursor:pointer;font-family:inherit;font-weight:600;min-height:54px;-webkit-tap-highlight-color:transparent;letter-spacing:.2px;}
-      .mobile-bottom-nav button .nav-icon{font-size:1.35rem;}
-      .mobile-bottom-nav button.active{color:var(--blue);}
-
-      /* Toast above bottom nav */
-      #toast{bottom:calc(64px + env(safe-area-inset-bottom));}
+      /* Toast */
+      #toast{bottom:16px;}
 
       /* Modals slide up from bottom */
       .modal-overlay{padding:0;align-items:flex-end;z-index:300;}
@@ -1890,13 +1853,7 @@ function showSection(id, btn) {
   document.getElementById(id).classList.add('active');
   document.querySelectorAll(`[onclick*="'${id}'"]`).forEach(b=>b.classList.add('active'));
   if(id==='reports') renderSummary();
-  // On mobile each section is its own scroll container — reset it to top
-  if (window.innerWidth <= 640) {
-    const el = document.getElementById(id);
-    if (el) el.scrollTop = 0;
-  } else {
-    window.scrollTo(0, 0);
-  }
+  window.scrollTo(0, 0);
 }
 
 // ─── HST / TAX CALCULATOR ────────────────────────────────────
