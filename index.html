@@ -467,34 +467,6 @@
     @media(max-width:640px){
       /* Only clip on body, NOT html — overflow-x:hidden on html breaks iOS scroll & position:fixed */
       body{overflow-x:hidden;}
-
-      /* App-shell layout: fill viewport height, header top, nav bottom, main scrolls in between */
-      #appShell{
-        flex-direction:column;
-        height:100vh;
-        height:100dvh;
-        overflow:hidden;
-      }
-      header{
-        flex-shrink:0;
-        position:relative!important;
-        top:auto!important;
-      }
-      nav:not(.mobile-bottom-nav){display:none!important;}
-      main{
-        flex:1;
-        overflow-y:auto;
-        -webkit-overflow-scrolling:touch;
-        padding:12px 12px 20px!important;
-        width:100%;
-        box-sizing:border-box;
-      }
-      .mobile-bottom-nav{
-        flex-shrink:0;
-        position:relative!important;
-        bottom:auto!important;
-        box-shadow:0 -4px 20px rgba(0,0,0,.08);
-      }
       .section-header h2{font-size:1.15rem;}
       .section-header p{font-size:.78rem;}
       .card{overflow:visible;}
@@ -1755,7 +1727,7 @@ auth.onAuthStateChanged(async user => {
       return;
     }
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appShell').style.display = window.matchMedia('(max-width:640px)').matches ? 'flex' : 'block';
+    document.getElementById('appShell').style.display = 'block';
     document.getElementById('userName').textContent = user.displayName?.split(' ')[0]||user.email;
     document.getElementById('userAvatar').src = user.photoURL||'';
     applyRBAC(role);
