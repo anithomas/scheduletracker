@@ -1647,7 +1647,7 @@ async function checkUserAccess(user) {
     return 'admin';
   }
   const entry = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
-  return entry ? (entry.role||'viewer') : 'viewer';
+  return entry ? (entry.role||'viewer') : 'denied'; // unknown users are DENIED, not viewers
 }
 
 function applyRBAC(role) {
