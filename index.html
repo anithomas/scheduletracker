@@ -606,9 +606,9 @@
   </header>
 
   <nav>
-    <button class="active" onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> Auto Maintenance</button>
+    <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
+    <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> Auto Maintenance</button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> Home Schedules</button>
-    <button onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
   </nav>
@@ -616,7 +616,7 @@
   <main>
 
     <!-- AUTO -->
-    <div id="auto" class="section active">
+    <div id="auto" class="section">
       <div class="section-header">
         <h2>🚗 Auto Maintenance</h2>
         <p>Track service history and upcoming maintenance for both vehicles</p>
@@ -664,7 +664,7 @@
     </div>
 
     <!-- CALENDAR -->
-    <div id="calendar" class="section">
+    <div id="calendar" class="section active">
       <div class="section-header">
         <h2>📅 Family Calendar</h2>
         <p>Medical, vehicle, home and general appointments for the whole family</p>
@@ -975,9 +975,9 @@
   </main>
 
   <nav class="mobile-bottom-nav">
-    <button class="active" onclick="showSection('auto',this)"><span class="nav-icon">🚗</span>Auto</button>
+    <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span>Calendar</button>
+    <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span>Auto</button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span>Home</button>
-    <button onclick="showSection('calendar',this)"><span class="nav-icon">📅</span>Calendar</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span>Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
   </nav>
@@ -1663,7 +1663,7 @@ function applyRBAC(role) {
   // If contributor/viewer is on admin section, redirect
   if (role !== 'admin') {
     const adminEl = document.getElementById('admin');
-    if (adminEl?.classList.contains('active')) showSection('auto', document.querySelector('nav button'));
+    if (adminEl?.classList.contains('active')) showSection('calendar', document.querySelector('nav button'));
   }
 }
 
