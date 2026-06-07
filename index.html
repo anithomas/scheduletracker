@@ -322,11 +322,73 @@
 
     /* PRINT */
     @media print{
+      /* ── General ── */
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
       header,nav,.mobile-bottom-nav,.btn-actions,.report-filters,.print-btn,.report-tabs,.cal-controls button,#toast{display:none!important;}
-      body{background:#fff;}
-      .section{display:block!important;}
+      body{background:#fff;margin:0;padding:0;}
+      main{padding:0!important;}
       .card{box-shadow:none;border:1px solid #ddd;page-break-inside:avoid;}
-      main{padding:0;}
+
+      /* ── When About is active: hide everything else, show only About ── */
+      #about.active ~ *,
+      body:has(#about.active) header,
+      body:has(#about.active) nav{ display:none!important; }
+
+      /* Show only #about when it's the active section */
+      .section:not(#about){ display:none!important; }
+      #about{ display:block!important; padding:0 20px 20px!important; }
+
+      /* ── Hero banner ── */
+      .about-hero{
+        background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 50%,#7c3aed 100%)!important;
+        border-radius:0!important;
+        margin:0 -20px 24px!important;
+        padding:36px 32px 32px!important;
+        page-break-inside:avoid;
+        page-break-after:avoid;
+      }
+      .about-hero h1{font-size:28px!important;color:#fff!important;}
+      .about-hero p{color:#c7d2fe!important;}
+      .about-hero-badge{background:rgba(255,255,255,.15)!important;color:#fde68a!important;}
+      .about-tag{background:rgba(255,255,255,.12)!important;color:#e0e7ff!important;border:1px solid rgba(255,255,255,.2)!important;}
+
+      /* ── Builder card ── */
+      .about-builder{border:1px solid #e2e8f0!important;box-shadow:none!important;page-break-inside:avoid;}
+      .about-builder h2{color:#1e3a8a!important;}
+      .about-claude-badge{background:#4f46e5!important;color:#fff!important;}
+
+      /* ── Features grid ── */
+      .about-features-grid{grid-template-columns:1fr 1fr!important;gap:12px!important;}
+      .about-feature-card{
+        border:1px solid #e2e8f0!important;
+        box-shadow:none!important;
+        page-break-inside:avoid;
+        break-inside:avoid;
+      }
+      .about-feature-icon.cal{background:#dbeafe!important;}
+      .about-feature-icon.auto{background:#fce7f3!important;}
+      .about-feature-icon.home{background:#d1fae5!important;}
+      .about-feature-icon.rep{background:#ede9fe!important;}
+      .about-feature-icon.sec{background:#fef3c7!important;}
+      .about-feature-icon.mob{background:#e0f2fe!important;}
+      .about-feature-icon.apk{background:#dcfce7!important;}
+      .about-feature-icon.adm{background:#f0fdf4!important;}
+
+      /* ── Tech stack ── */
+      .about-stack{background:#f8fafc!important;border:1px solid #e2e8f0!important;box-shadow:none!important;page-break-inside:avoid;}
+      .about-pill.blue{background:#1d4ed8!important;color:#fff!important;}
+      .about-pill.green{background:#059669!important;color:#fff!important;}
+      .about-pill.purple{background:#7c3aed!important;color:#fff!important;}
+      .about-pill.amber{background:#d97706!important;color:#fff!important;}
+      .about-pill.rose{background:#e11d48!important;color:#fff!important;}
+      .about-pill.slate{background:#475569!important;color:#fff!important;}
+
+      /* ── Footer ── */
+      .about-footer{border-top:2px solid #4f46e5!important;background:#fff!important;}
+
+      /* ── Page breaks ── */
+      .about-builder{page-break-after:avoid;}
+      .about-features-grid{page-break-before:avoid;}
     }
 
     /* RESPONSIVE TABLET */
