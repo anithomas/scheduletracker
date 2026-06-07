@@ -800,7 +800,7 @@
           <div class="report-total-row" id="autoReportTotals"></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Vehicle</th><th>Service</th><th>Date</th><th>Pre-Tax</th><th>HST (13%)</th><th>Total</th><th>Receipt</th></tr></thead>
+              <thead><tr><th>Vehicle</th><th>Service</th><th>Date</th><th>Pre-Tax</th><th>HST (13%)</th><th>Total</th><th>Attachment</th></tr></thead>
               <tbody id="autoReportBody"></tbody>
             </table>
           </div>
@@ -832,7 +832,7 @@
           <div class="report-total-row" id="homeReportTotals"></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Item</th><th>Category</th><th>Date</th><th>Pre-Tax</th><th>HST (13%)</th><th>Total</th><th>Receipt</th></tr></thead>
+              <thead><tr><th>Item</th><th>Category</th><th>Date</th><th>Pre-Tax</th><th>HST (13%)</th><th>Total</th><th>Attachment</th></tr></thead>
               <tbody id="homeReportBody"></tbody>
             </table>
           </div>
@@ -1034,7 +1034,7 @@
 
       <!-- Hero Banner -->
       <div class="about-hero">
-        <div class="about-hero-badge">✨ Built with Claude AI · 2025–2026</div>
+        <div class="about-hero-badge" id="aboutBuildBadge">✨ Built with Claude AI</div>
         <h1>Family Household Tracker</h1>
         <p>A complete household management system — vehicles, home, calendar, and beyond — designed and built from scratch by one person and an AI, for the Thomas family.</p>
         <div class="about-hero-tags">
@@ -1081,14 +1081,14 @@
             <div class="about-feature-icon auto">🚗</div>
             <div class="about-feature-text">
               <h4>Auto Maintenance</h4>
-              <p>Full service history for every vehicle. Tracks odometer (km), cost with HST calculator, duration, technician, and receipt photos.</p>
+              <p>Full service history for every vehicle. Tracks odometer (km), cost with HST calculator, duration, technician, and file attachments — photos, PDFs, invoices, or any document.</p>
             </div>
           </div>
           <div class="about-feature-card">
             <div class="about-feature-icon home">🏡</div>
             <div class="about-feature-text">
               <h4>Home Schedules</h4>
-              <p>HVAC filters, appliances, plumbing, electrical — every home maintenance task logged with cost, service provider, and receipt attachments.</p>
+              <p>HVAC filters, appliances, plumbing, electrical — every home maintenance task logged with cost, service provider, and file attachments — photos, PDFs, invoices, warranties, or any safe document.</p>
             </div>
           </div>
           <div class="about-feature-card">
@@ -1155,6 +1155,9 @@
       </div>
 
     </div><!-- /about -->
+    <script>
+      (function(){ const y=new Date().getFullYear(); const el=document.getElementById('aboutBuildBadge'); if(el) el.textContent='✨ Built with Claude AI · '+y; })();
+    </script>
 
   </main>
 
@@ -1263,10 +1266,10 @@
     <div class="form-group"><label>Notes</label><textarea id="aNotes" placeholder="Shop name, details..."></textarea></div>
     <div class="divider"></div>
     <div class="form-group">
-      <label>📎 Attach Receipt / Invoice</label>
+      <label>📎 Attach Documents / Files</label>
       <label class="file-upload-wrap" for="aFile">
-        <input type="file" id="aFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,.mp4,.mov" multiple onchange="previewFile('aFile','aFilePreview')" />
-        <span class="file-upload-label">📁 Tap to attach receipts / invoices (multiple allowed)</span>
+        <input type="file" id="aFile" multiple onchange="previewFile('aFile','aFilePreview')" />
+        <span class="file-upload-label">📁 Tap to attach photos, PDFs, documents, or any file — multiple allowed</span>
         <div class="file-preview" id="aFilePreview"></div>
       </label>
       <div id="aExistingFile" style="margin-top:6px"></div>
@@ -1311,10 +1314,10 @@
     <div class="form-group"><label>Notes</label><textarea id="hNotes" placeholder="Brand, size, where to buy..."></textarea></div>
     <div class="divider"></div>
     <div class="form-group">
-      <label>📎 Attach Receipt / Invoice</label>
+      <label>📎 Attach Documents / Files</label>
       <label class="file-upload-wrap" for="hFile">
-        <input type="file" id="hFile" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx,.mp4,.mov" multiple onchange="previewFile('hFile','hFilePreview')" />
-        <span class="file-upload-label">📁 Tap to attach receipts / invoices (multiple allowed)</span>
+        <input type="file" id="hFile" multiple onchange="previewFile('hFile','hFilePreview')" />
+        <span class="file-upload-label">📁 Tap to attach photos, PDFs, documents, or any file — multiple allowed</span>
         <div class="file-preview" id="hFilePreview"></div>
       </label>
       <div id="hExistingFile" style="margin-top:6px"></div>
@@ -2132,12 +2135,42 @@ function durLabel(val, unit) {
 }
 
 // ─── FILE UPLOAD ──────────────────────────────────────────────
+const BLOCKED_EXTS = new Set([
+  'exe','bat','cmd','com','msi','dmg','app','pkg','deb','rpm',
+  'sh','bash','ps1','psm1','psd1','vbs','vbe','jse','wsf','wsh',
+  'reg','inf','scr','pif','lnk','dll','so','dylib','bin','run',
+  'gadget','hta','cpl','msc'
+]);
+
+function isSafeFile(file) {
+  const ext = (file.name.split('.').pop()||'').toLowerCase();
+  return !BLOCKED_EXTS.has(ext);
+}
+
+function fileIcon(urlOrName) {
+  const name = (urlOrName||'').split('?')[0].split('/').pop();
+  const ext = (name.split('.').pop()||'').toLowerCase();
+  if(['jpg','jpeg','png','gif','webp','heic','heif','bmp','svg','tiff'].includes(ext)) return '🖼️';
+  if(ext==='pdf') return '📄';
+  if(['doc','docx','odt','pages','rtf','txt','md'].includes(ext)) return '📝';
+  if(['xls','xlsx','ods','numbers','csv','tsv'].includes(ext)) return '📊';
+  if(['ppt','pptx','odp','keynote'].includes(ext)) return '📑';
+  if(['mp4','mov','avi','mkv','webm','m4v'].includes(ext)) return '🎬';
+  if(['mp3','m4a','wav','aac','flac','ogg'].includes(ext)) return '🎵';
+  if(['zip','7z','tar','gz','rar'].includes(ext)) return '🗜️';
+  return '📎';
+}
+
 function previewFile(inputId, previewId) {
-  const files = Array.from(document.getElementById(inputId)?.files||[]);
+  const input = document.getElementById(inputId);
   const preview = document.getElementById(previewId);
-  if(!preview) return;
-  if(files.length===0){preview.textContent='';return;}
-  preview.innerHTML = files.map(f=>`<div>📎 ${f.name} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
+  if(!preview || !input) return;
+  const allFiles = Array.from(input.files||[]);
+  const safe = allFiles.filter(isSafeFile);
+  const blocked = allFiles.filter(f=>!isSafeFile(f));
+  if(blocked.length>0) toast(`🚫 Blocked ${blocked.length} unsafe file(s): ${blocked.map(f=>f.name).join(', ')}`);
+  if(safe.length===0){preview.innerHTML='';return;}
+  preview.innerHTML = safe.map(f=>`<div>${fileIcon(f.name)} ${f.name} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
 }
 
 async function uploadFile(file, path) {
@@ -2156,6 +2189,7 @@ async function uploadFile(file, path) {
 async function uploadFiles(files, uid, prefix) {
   const urls = [];
   for(const f of files){
+    if(!isSafeFile(f)){ toast(`🚫 Skipped unsafe file: ${f.name}`); continue; }
     const url = await uploadFile(f, `receipts/${uid}/${prefix}_${Date.now()}_${f.name}`);
     if(url) urls.push(url);
   }
@@ -2203,7 +2237,7 @@ function renderAuto() {
       <td>${statusBadge(r.nextDate)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
-        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="Receipt ${i+1}">📎</a>`).join('')}
+        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
         <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${r.id}')"  title="Delete">🗑</button>
       </div></td>
@@ -2271,7 +2305,7 @@ function editAuto(id){
   document.getElementById('aDurUnit').value=r.durUnit||'months';
   document.getElementById('aNotes').value=r.notes||'';
   document.getElementById('aFilePreview').innerHTML='';
-  document.getElementById('aExistingFile').innerHTML=aAllUrls.length>0?aAllUrls.map((u,i)=>`<a class="attachment-link" href="${u}" target="_blank">📎 Receipt ${aAllUrls.length>1?i+1:''}</a>`).join(' '):'';
+  document.getElementById('aExistingFile').innerHTML=aAllUrls.length>0?aAllUrls.map((u,i)=>`<a class="attachment-link" href="${u}" target="_blank">${fileIcon(u)} File ${aAllUrls.length>1?i+1:''}</a>`).join(' '):'';
   updateHst('a'); updateKm();
   openModal('autoModal');
 }
@@ -2294,7 +2328,7 @@ function renderHome(){
       <td>${statusBadge(h.nextDate)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
       <td><div class="btn-actions">
-        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="Receipt ${i+1}">📎</a>`).join('')}
+        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
         <button class="btn-icon btn-done" onclick="markDone('${h.id}')" title="Mark done">✅</button>
         <button class="btn-icon btn-edit" onclick="editHome('${h.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delHome('${h.id}')"  title="Delete">🗑</button>
@@ -2379,7 +2413,7 @@ function editHome(id){
   if(totalEl){totalEl.value=h.totalOverride||'';totalEl.dataset.manualOverride=h.totalOverride?'1':'';}
   document.getElementById('hNotes').value=h.notes||'';
   document.getElementById('hFilePreview').innerHTML='';
-  document.getElementById('hExistingFile').innerHTML=hAllUrls.length>0?hAllUrls.map((u,i)=>`<a class="attachment-link" href="${u}" target="_blank">📎 Receipt ${hAllUrls.length>1?i+1:''}</a>`).join(' '):'';
+  document.getElementById('hExistingFile').innerHTML=hAllUrls.length>0?hAllUrls.map((u,i)=>`<a class="attachment-link" href="${u}" target="_blank">${fileIcon(u)} File ${hAllUrls.length>1?i+1:''}</a>`).join(' '):'';
   updateHst('h');
   openModal('homeModal');
 }
@@ -2609,7 +2643,7 @@ function renderReportAuto(){
       <td>${c>0?'$'+c.toFixed(2):'—'}</td>
       <td>${c>0?taxPct+'% · $'+taxAmt.toFixed(2):'—'}</td>
       <td><strong>${tot>0?'$'+tot.toFixed(2):'—'}</strong></td>
-      <td>${r.attachmentUrl?`<a class="attachment-link" href="${r.attachmentUrl}" target="_blank">📎 View</a>`:'—'}</td>
+      <td>${r.attachmentUrl?`<a class="attachment-link" href="${r.attachmentUrl}" target="_blank">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
     </tr>`;
   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚗</div><p>No records match filters</p></div></td></tr>`;
 }
