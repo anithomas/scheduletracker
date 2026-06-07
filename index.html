@@ -416,6 +416,62 @@
       .cal-day{min-height:44px;}
     }
 
+    /* ABOUT PAGE */
+    .about-hero{background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 40%,#7c3aed 80%,#db2777 100%);border-radius:var(--radius-lg);padding:48px 36px;margin-bottom:28px;position:relative;overflow:hidden;text-align:center;}
+    .about-hero::before{content:'✨';position:absolute;left:-20px;top:-20px;font-size:10rem;opacity:.07;pointer-events:none;}
+    .about-hero::after{content:'🏠';position:absolute;right:-10px;bottom:-20px;font-size:9rem;opacity:.07;pointer-events:none;}
+    .about-hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.9);padding:5px 16px;border-radius:20px;font-size:.78rem;font-weight:600;letter-spacing:.04em;margin-bottom:20px;}
+    .about-hero h1{font-size:2.4rem;font-weight:900;color:#fff;margin-bottom:10px;line-height:1.15;}
+    .about-hero p{font-size:1rem;color:rgba(255,255,255,.7);max-width:560px;margin:0 auto 20px;line-height:1.65;}
+    .about-hero-tags{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+    .about-tag{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.88);padding:5px 14px;border-radius:20px;font-size:.78rem;font-weight:600;}
+
+    .about-builder{background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--gray-100);padding:36px 32px;margin-bottom:28px;display:flex;gap:32px;align-items:center;position:relative;overflow:hidden;}
+    .about-builder::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#3b82f6,#8b5cf6,#ec4899);}
+    .about-builder-avatar{width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:2.4rem;flex-shrink:0;box-shadow:0 8px 24px rgba(29,78,216,.3);}
+    .about-builder-info{flex:1;}
+    .about-builder-info h2{font-size:1.4rem;font-weight:900;color:var(--gray-900);margin-bottom:4px;}
+    .about-builder-info .subtitle{font-size:.88rem;color:var(--blue);font-weight:600;margin-bottom:12px;}
+    .about-builder-info p{font-size:.88rem;color:var(--gray-600);line-height:1.7;}
+    .about-claude-badge{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;color:#0369a1;padding:8px 16px;border-radius:12px;font-size:.82rem;font-weight:700;margin-top:14px;}
+    .about-claude-badge .cl-dot{width:8px;height:8px;border-radius:50%;background:#f97316;display:inline-block;}
+
+    .about-features-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-bottom:28px;}
+    .about-feature-card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--gray-100);padding:22px 20px;display:flex;gap:15px;align-items:flex-start;transition:box-shadow .2s,transform .2s;}
+    .about-feature-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);}
+    .about-feature-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
+    .about-feature-icon.cal{background:linear-gradient(135deg,#dbeafe,#bfdbfe);}
+    .about-feature-icon.auto{background:linear-gradient(135deg,#d1fae5,#a7f3d0);}
+    .about-feature-icon.home{background:linear-gradient(135deg,#fef3c7,#fde68a);}
+    .about-feature-icon.rep{background:linear-gradient(135deg,#ede9fe,#ddd6fe);}
+    .about-feature-icon.sec{background:linear-gradient(135deg,#fee2e2,#fecaca);}
+    .about-feature-icon.mob{background:linear-gradient(135deg,#ccfbf1,#99f6e4);}
+    .about-feature-icon.apk{background:linear-gradient(135deg,#fce7f3,#fbcfe8);}
+    .about-feature-icon.adm{background:linear-gradient(135deg,#f1f5f9,#e2e8f0);}
+    .about-feature-text h4{font-size:.9rem;font-weight:700;color:var(--gray-900);margin-bottom:4px;}
+    .about-feature-text p{font-size:.79rem;color:var(--gray-500);line-height:1.55;}
+
+    .about-stack{background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--gray-100);padding:28px 28px;margin-bottom:28px;}
+    .about-stack h3{font-size:1rem;font-weight:800;color:var(--gray-900);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+    .about-stack-pills{display:flex;flex-wrap:wrap;gap:10px;}
+    .about-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;font-size:.79rem;font-weight:600;border:1.5px solid;}
+    .about-pill.blue{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+    .about-pill.green{background:#f0fdf4;border-color:#bbf7d0;color:#15803d;}
+    .about-pill.purple{background:#faf5ff;border-color:#e9d5ff;color:#7e22ce;}
+    .about-pill.amber{background:#fffbeb;border-color:#fde68a;color:#b45309;}
+    .about-pill.rose{background:#fff1f2;border-color:#fecdd3;color:#be123c;}
+    .about-pill.slate{background:#f8fafc;border-color:#e2e8f0;color:#475569;}
+
+    .about-footer{text-align:center;padding:24px;color:var(--gray-400);font-size:.79rem;}
+    .about-footer strong{color:var(--gray-600);}
+
+    @media(max-width:640px){
+      .about-hero{padding:32px 20px;}
+      .about-hero h1{font-size:1.7rem;}
+      .about-builder{flex-direction:column;text-align:center;padding:28px 20px;}
+      .about-features-grid{grid-template-columns:1fr;}
+    }
+
     /* ADMIN PAGE */
     .admin-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 50%,#4f46e5 100%);border-radius:var(--radius-lg);padding:32px 28px;margin-bottom:24px;position:relative;overflow:hidden;}
     .admin-hero::before{content:'⚙️';position:absolute;right:-10px;top:-20px;font-size:8rem;opacity:.08;pointer-events:none;}
@@ -611,6 +667,7 @@
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> Home Schedules</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
+    <button onclick="showSection('about',this)"><span class="nav-icon">✨</span> About</button>
   </nav>
 
   <main>
@@ -972,6 +1029,133 @@
       </div>
     </div><!-- /admin -->
 
+    <!-- ABOUT -->
+    <div id="about" class="section">
+
+      <!-- Hero Banner -->
+      <div class="about-hero">
+        <div class="about-hero-badge">✨ Built with Claude AI · 2025–2026</div>
+        <h1>Family Household Tracker</h1>
+        <p>A complete household management system — vehicles, home, calendar, and beyond — designed and built from scratch by one person and an AI, for the Philip family.</p>
+        <div class="about-hero-tags">
+          <span class="about-tag">📅 Calendar</span>
+          <span class="about-tag">🚗 Auto Maintenance</span>
+          <span class="about-tag">🏡 Home Schedules</span>
+          <span class="about-tag">📊 Reports</span>
+          <span class="about-tag">🔒 Secure &amp; Private</span>
+          <span class="about-tag">📱 Android App</span>
+        </div>
+      </div>
+
+      <!-- Builder Card -->
+      <div class="about-builder">
+        <div class="about-builder-avatar">👨‍💻</div>
+        <div class="about-builder-info">
+          <h2>Ani Thomas</h2>
+          <div class="subtitle">Creator &amp; Product Owner</div>
+          <p>
+            This entire application — from concept to code to cloud deployment — was designed, directed, and shipped by <strong>Ani Thomas</strong> using <strong>Claude AI</strong> as the development partner. No traditional development team. No agency. Just vision, iteration, and a powerful AI collaborator working together to solve a real family need.
+          </p>
+          <p style="margin-top:10px;">
+            Every feature, every design decision, every database schema and security rule was shaped through conversation with Claude — proving that with the right tools, anyone with a clear vision can build production-quality software.
+          </p>
+          <div class="about-claude-badge">
+            <span class="cl-dot"></span>
+            100% built end-to-end with Claude AI by Anthropic
+          </div>
+        </div>
+      </div>
+
+      <!-- Features Grid -->
+      <div style="margin-bottom:16px;">
+        <h3 style="font-size:1.05rem;font-weight:800;color:var(--gray-900);margin-bottom:18px;">What this app does</h3>
+        <div class="about-features-grid">
+          <div class="about-feature-card">
+            <div class="about-feature-icon cal">📅</div>
+            <div class="about-feature-text">
+              <h4>Family Calendar</h4>
+              <p>Monthly view with multi-event days, date-range events, member color coding, and 12-hour time format. Medical, school, vehicle, home &amp; custom event types.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon auto">🚗</div>
+            <div class="about-feature-text">
+              <h4>Auto Maintenance</h4>
+              <p>Full service history for every vehicle. Tracks odometer (km), cost with HST calculator, duration, technician, and receipt photos.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon home">🏡</div>
+            <div class="about-feature-text">
+              <h4>Home Schedules</h4>
+              <p>HVAC filters, appliances, plumbing, electrical — every home maintenance task logged with cost, service provider, and receipt attachments.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon rep">📊</div>
+            <div class="about-feature-text">
+              <h4>Reports &amp; Summaries</h4>
+              <p>Filterable spend reports across Auto, Home, and Calendar. Total cost tracking with HST breakdowns. Printable layouts.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon sec">🔒</div>
+            <div class="about-feature-text">
+              <h4>Private &amp; Secure</h4>
+              <p>Google Sign-In required. Role-based access (Admin / Contributor / Viewer). Unknown accounts are blocked outright — household members only.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon mob">📱</div>
+            <div class="about-feature-text">
+              <h4>Mobile-First PWA</h4>
+              <p>Fully responsive design optimized for Android Chrome. Installable as a Progressive Web App with offline support and a native app feel.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon apk">🤖</div>
+            <div class="about-feature-text">
+              <h4>Native Android APK</h4>
+              <p>A real Android app (Capacitor v6) built and published automatically via GitHub Actions on every update. No app store needed.</p>
+            </div>
+          </div>
+          <div class="about-feature-card">
+            <div class="about-feature-icon adm">⚙️</div>
+            <div class="about-feature-text">
+              <h4>Full Admin Control</h4>
+              <p>Manage vehicles, family members, categories, branding, and user access — all from within the app. All config stored in real-time in Firebase.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tech Stack -->
+      <div class="about-stack">
+        <h3>🛠️ Tech Stack</h3>
+        <div class="about-stack-pills">
+          <span class="about-pill blue">Firebase Firestore</span>
+          <span class="about-pill blue">Firebase Auth</span>
+          <span class="about-pill blue">Firebase Storage</span>
+          <span class="about-pill green">GitHub Pages</span>
+          <span class="about-pill green">GitHub Actions</span>
+          <span class="about-pill purple">Capacitor v6</span>
+          <span class="about-pill purple">PWA</span>
+          <span class="about-pill amber">Vanilla JS</span>
+          <span class="about-pill amber">HTML5 / CSS3</span>
+          <span class="about-pill rose">Google Sign-In</span>
+          <span class="about-pill slate">GoDaddy DNS</span>
+          <span class="about-pill slate">Let's Encrypt HTTPS</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="about-footer">
+        <p>🏠 <strong>Family Household Tracker</strong> · Built by <strong>Ani Thomas</strong> with <strong>Claude AI</strong></p>
+        <p style="margin-top:6px;">tracker.logicmanse.ca · Philip Family · Private &amp; Secure</p>
+      </div>
+
+    </div><!-- /about -->
+
   </main>
 
   <nav class="mobile-bottom-nav">
@@ -980,6 +1164,7 @@
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span>Home</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span>Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
+    <button onclick="showSection('about',this)"><span class="nav-icon">✨</span>About</button>
   </nav>
 </div>
 
