@@ -102,7 +102,7 @@
     .sign-out-btn:hover{background:rgba(255,255,255,.2);}
 
     /* NAV TABS */
-    nav{background:#fff;border-bottom:1px solid var(--gray-200);display:flex;padding:0 20px;gap:2px;position:sticky;top:56px;z-index:40;box-shadow:var(--shadow-sm);overflow-x:auto;}
+    nav{background:#fff;border-bottom:1px solid var(--gray-200);display:flex;padding:0 20px;gap:2px;position:-webkit-sticky;position:sticky;top:56px;z-index:40;box-shadow:var(--shadow-sm);overflow-x:auto;will-change:transform;}
     nav::-webkit-scrollbar{display:none;}
     nav button{padding:12px 14px;border:none;background:none;font-size:.84rem;font-weight:500;color:var(--gray-500);cursor:pointer;border-bottom:3px solid transparent;display:flex;align-items:center;gap:6px;transition:color .15s;white-space:nowrap;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
     nav button .nav-icon{font-size:.95rem;}
@@ -1336,12 +1336,26 @@
       <input type="hidden" id="mcColor" />
     </div>
     <div id="memberColorPreview" style="margin-top:12px;height:40px;border-radius:10px;transition:background .3s;"></div>
-    <div id="mcDeviceSection" style="margin-top:16px;padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);display:none">
-      <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:4px">📱 Push Notifications — This Device</div>
-      <div id="mcDeviceStatusText" style="font-size:.78rem;color:var(--gray-500);margin-bottom:10px"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div id="mcDeviceSection" style="margin-top:16px;display:none">
+      <!-- Device list -->
+      <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:12px">
+        <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:8px">📱 Registered Devices</div>
+        <div id="mcDeviceList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
         <button class="btn btn-sm btn-primary" id="mcRegisterBtn" onclick="registerCurrentMemberDevice()">📱 Register This Device</button>
-        <button class="btn btn-sm btn-ghost" id="mcUnregisterBtn" onclick="unregisterCurrentMemberDevice()" style="display:none">🗑 Remove Device</button>
+      </div>
+      <!-- Notification subscriptions -->
+      <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100)">
+        <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:6px">🔔 Auto-notify me for event types</div>
+        <div style="font-size:.76rem;color:var(--gray-400);margin-bottom:10px">When these event types are created or upcoming, this member gets notified even if not assigned.</div>
+        <div id="mcNotifyTypesWrap" style="display:flex;flex-wrap:wrap;gap:8px">
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" id="mcNotifyAll" style="width:auto" onchange="toggleNotifyAll(this)" /> All events</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="medical" style="width:auto" /> 🏥 Medical</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="vehicle" style="width:auto" /> 🚗 Vehicle</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="school" style="width:auto" /> 🎓 School</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="home" style="width:auto" /> 🏡 Home</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="general" style="width:auto" /> 📋 General</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="other" style="width:auto" /> 📌 Other</label>
+        </div>
       </div>
     </div>
     <div class="form-actions">
@@ -1482,8 +1496,16 @@
         <label>Type</label>
         <select id="cType"></select>
       </div>
-      <div class="form-group"><label>Family Member</label><select id="cMember"></select></div>
-      <div class="form-group"><label>Notify</label><select id="cReminderRecipients"><option value="all">👨‍👩‍👧‍👦 All Members (default)</option></select></div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>👥 Who is this event for? <span style="font-weight:400;color:var(--gray-400)">(select one or more)</span></label>
+        <div id="cMembersWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;min-height:42px"></div>
+        <input type="hidden" id="cMember" /><!-- keep for backward compat -->
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>🔔 Who gets notified? <span style="font-weight:400;color:var(--gray-400)">(auto-includes event members + subscribers)</span></label>
+        <div id="cNotifyWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;min-height:42px"></div>
+        <input type="hidden" id="cReminderRecipients" value="all"/><!-- kept for compat -->
+      </div>
       <div class="form-group"><label>Location</label><input type="text" id="cLocation" placeholder="📍 Clinic, office..." /></div>
     </div>
     <div class="form-group"><label>Notes</label><textarea id="cNotes" placeholder="Prep needed, bring documents, etc."></textarea></div>
@@ -1678,12 +1700,60 @@ function rebuildVehicleDropdowns(){
 }
 
 function rebuildMemberDropdowns(){
+  // Report filter dropdown (unchanged)
   const opts=appMembers.map(m=>`<option value="${m.name}">${memberDisplayName(m)}</option>`).join('');
-  const allOpt='<option value="All">👨‍👩‍👧‍👦 All / Family</option>';
-  const cMem=document.getElementById('cMember');
-  if(cMem){const cur=cMem.value;cMem.innerHTML=opts+allOpt;if(cur)cMem.value=cur;}
   const rfm=document.getElementById('rfMember');
   if(rfm){const cur=rfm.value;rfm.innerHTML='<option value="">All Members</option>'+opts+'<option value="All">All</option>';if(cur)rfm.value=cur;}
+  // Build multi-member checkbox picker for event modal
+  buildEventMemberPicker([],[]);
+}
+
+// Build the event modal member chip-checkboxes and notify section
+// selectedMembers = array of member names already checked for "event members"
+// notifyMembers = array of names checked for notifications
+function buildEventMemberPicker(selectedMembers, notifyMembers){
+  const wrap=document.getElementById('cMembersWrap');
+  const nwrap=document.getElementById('cNotifyWrap');
+  if(!wrap||!nwrap) return;
+  // Auto-derive notify: event members + members whose notifyTypes matches current event type
+  const evType=(document.getElementById('cType')?.value||'').toLowerCase();
+  const autoNotify=new Set(selectedMembers);
+  appMembers.forEach(m=>{
+    const nt=m.notifyTypes||[];
+    if(nt.includes('all')||(evType&&nt.includes(evType))) autoNotify.add(m.name);
+  });
+  // If notifyMembers passed, union with auto
+  if(notifyMembers&&notifyMembers.length) notifyMembers.forEach(n=>autoNotify.add(n));
+  wrap.innerHTML=appMembers.map(m=>{
+    const checked=selectedMembers.includes(m.name);
+    return `<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border:1.5px solid ${checked?m.color:'var(--gray-200)'};border-radius:20px;background:${checked?m.color+'18':'var(--gray-50)'};font-size:.82rem;font-weight:${checked?'700':'500'};color:${checked?m.color:'var(--gray-600)'};transition:all .15s;touch-action:manipulation">
+      <input type="checkbox" class="c-member-cb" value="${m.name}" style="width:auto;accent-color:${m.color}" ${checked?'checked':''} onchange="onEventMemberChange()" />
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0"></span>
+      ${m.nickname||m.name.split(' ')[0]}
+    </label>`;
+  }).join('');
+  nwrap.innerHTML=appMembers.map(m=>{
+    const isAuto=autoNotify.has(m.name);
+    return `<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border:1.5px solid ${isAuto?m.color:'var(--gray-200)'};border-radius:20px;background:${isAuto?m.color+'18':'var(--gray-50)'};font-size:.82rem;font-weight:${isAuto?'700':'500'};color:${isAuto?m.color:'var(--gray-500)'};transition:all .15s;touch-action:manipulation" title="${isAuto?'Will be notified':'Not notified'}">
+      <input type="checkbox" class="c-notify-cb" value="${m.name}" style="width:auto;accent-color:${m.color}" ${isAuto?'checked':''} />
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0"></span>
+      ${m.nickname||m.name.split(' ')[0]}
+      ${isAuto?'<span style="font-size:.7rem;opacity:.7">🔔</span>':''}
+    </label>`;
+  }).join('');
+}
+
+function onEventMemberChange(){
+  // Re-derive notify list when members change
+  const sel=getEventSelectedMembers();
+  buildEventMemberPicker(sel, getEventNotifyMembers());
+}
+
+function getEventSelectedMembers(){
+  return [...document.querySelectorAll('.c-member-cb:checked')].map(c=>c.value);
+}
+function getEventNotifyMembers(){
+  return [...document.querySelectorAll('.c-notify-cb:checked')].map(c=>c.value);
 }
 
 function rebuildCategoryDropdowns(){
@@ -1870,10 +1940,33 @@ function openAdminMemberModal(id){
   const devSection=document.getElementById('mcDeviceSection');
   if(m && devSection){
     devSection.style.display='block';
-    const count=(m.fcmTokens||[]).length;
-    document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet. Click below to register this browser/device.';
-    // Check if current device is already registered by getting current token asynchronously
+    // Render per-device rows
+    const tokens=m.fcmTokens||[];
+    const dlEl=document.getElementById('mcDeviceList');
+    if(dlEl){
+      if(!tokens.length){
+        dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
+      } else {
+        dlEl.innerHTML=tokens.map((t,i)=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
+            <span>📱 Device ${i+1}</span>
+            <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeSpecificDeviceToken('${m.id}','${t}',this)">🗑 Remove</button>
+          </div>`).join('');
+      }
+    }
+    // Register btn — show always; async check will hide if current device already registered
+    const regBtn=document.getElementById('mcRegisterBtn');
+    if(regBtn) regBtn.style.display='inline-flex';
     _updateMemberDeviceBtnState(m);
+    // Populate notifyTypes checkboxes
+    const nt=m.notifyTypes||[];
+    const isAll=nt.includes('all');
+    const notifyAllEl=document.getElementById('mcNotifyAll');
+    if(notifyAllEl) notifyAllEl.checked=isAll;
+    document.querySelectorAll('.mc-notify-type').forEach(cb=>{
+      cb.checked=!isAll&&nt.includes(cb.value);
+      cb.disabled=isAll;
+    });
   } else if(devSection){
     devSection.style.display='none';
   }
@@ -1887,10 +1980,45 @@ async function _updateMemberDeviceBtnState(m){
     const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
     const isReg=token&&(m.fcmTokens||[]).includes(token);
     const regBtn=document.getElementById('mcRegisterBtn');
-    const unregBtn=document.getElementById('mcUnregisterBtn');
+    // Hide "Register" button if this device is already registered
     if(regBtn) regBtn.style.display=isReg?'none':'inline-flex';
-    if(unregBtn) unregBtn.style.display=isReg?'inline-flex':'none';
   }catch(e){}
+}
+
+// Remove one specific FCM token from a member's device list
+async function removeSpecificDeviceToken(memberId, token, btn){
+  const idx=appMembers.findIndex(x=>x.id===memberId);
+  if(idx<0){toast('Member not found');return;}
+  try{
+    if(btn) btn.disabled=true;
+    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>t!==token);
+    await saveSettings();
+    // Re-render device list in place
+    const m=appMembers[idx];
+    const tokens=m.fcmTokens||[];
+    const dlEl=document.getElementById('mcDeviceList');
+    if(dlEl){
+      if(!tokens.length){
+        dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
+      } else {
+        dlEl.innerHTML=tokens.map((t,i)=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
+            <span>📱 Device ${i+1}</span>
+            <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeSpecificDeviceToken('${m.id}','${t}',this)">🗑 Remove</button>
+          </div>`).join('');
+      }
+    }
+    _updateMemberDeviceBtnState(m);
+    renderAdminMembers();
+    toast('🗑 Device removed');
+  }catch(e){toast('⚠️ Failed: '+e.message);if(btn) btn.disabled=false;}
+}
+
+function toggleNotifyAll(cb){
+  document.querySelectorAll('.mc-notify-type').forEach(el=>{
+    el.disabled=cb.checked;
+    if(cb.checked) el.checked=false;
+  });
 }
 
 function selectMemberColor(c,btn){
@@ -1908,6 +2036,9 @@ async function saveAdminMember(){
   const _role=document.getElementById('mcRole')?.value||'contributor';
   // Preserve existing fcmTokens when editing
   const existing=id?appMembers.find(x=>x.id===id):null;
+  // Collect notifyTypes
+  const _notifyAll=document.getElementById('mcNotifyAll')?.checked;
+  const _notifyTypes=_notifyAll?['all']:[...document.querySelectorAll('.mc-notify-type:checked')].map(c=>c.value);
   const m={
     id:id||'m'+Date.now(),
     name:document.getElementById('mcName').value.trim(),
@@ -1916,7 +2047,8 @@ async function saveAdminMember(){
     email:_email,
     phone:_phone,
     role:_role,
-    fcmTokens:existing?.fcmTokens||[]
+    fcmTokens:existing?.fcmTokens||[],
+    notifyTypes:_notifyTypes
   };
   if(!m.name){toast('⚠️ Name is required');return;}
   if(_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_email)){toast('⚠️ Enter a valid email address');return;}
@@ -2965,16 +3097,17 @@ function renderCalendar(){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=ds===todayStr;
     const dayEvts=eventsOnDay(ds);
-    const mClass=e=>'m-'+(e.member||'other').toLowerCase().replace(/\s+/g,'');
-    const mColor=e=>memberColor(e.member);
+    const eMembers=e=>e.members&&e.members.length?e.members:(e.member?[e.member]:[]);
+    const mClass=e=>'m-'+(eMembers(e)[0]||'other').toLowerCase().replace(/\s+/g,'');
+    const mColor=e=>memberColor(eMembers(e)[0]);
     const isRange=e=>e.endDate && e.endDate !== e.date;
     const shown=dayEvts.slice(0,3);
     const hidden=dayEvts.slice(3);
-    const tooltipRows=dayEvts.map(e=>`
-      <div class="cal-tooltip-row">
-        <span class="cal-tooltip-dot" style="background:${mColor(e)}"></span>
-        <span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${e.title}${isRange(e)?' 📅':''}${e.member?' · '+e.member:''}</span>
-      </div>`).join('');
+    const tooltipRows=dayEvts.map(e=>{
+      const mems=eMembers(e);
+      const dots=mems.map(m=>`<span class="cal-tooltip-dot" style="background:${memberColor(m)}"></span>`).join('');
+      return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${e.title}${isRange(e)?' 📅':''}${mems.length?' · '+mems.join(', '):''}</span></div>`;
+    }).join('');
     const inRange=dayEvts.some(e=>isRange(e)&&ds>e.date&&ds<=(e.endDate||e.date));
     html+=`<div class="cal-day${isToday?' today':''}${inRange?' in-range':''}" onclick="openCalDay('${ds}')">
       <span class="day-num">${d}</span>
@@ -2983,7 +3116,10 @@ function renderCalendar(){
         const isEnd=ds===(e.endDate||e.date);
         const rangeClass=isRange(e)?(isStart&&isEnd?'':isStart?'range-start':isEnd?'range-end':'range-mid'):'';
         const instDate = e._isRecurringInstance ? e._instanceDate : '';
-        return `<div class="cal-event ${mClass(e)} ${rangeClass}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}</div>`;
+        const mems=eMembers(e);
+        // For multi-member: show a gradient-like bar using first member color, with tiny dots for extras
+        const extraDots=mems.slice(1).map(m=>`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${memberColor(m)};margin-left:2px;vertical-align:middle;border:1px solid rgba(255,255,255,.7)"></span>`).join('');
+        return `<div class="cal-event ${mClass(e)} ${rangeClass}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}${extraDots}</div>`;
       }).join('')}
       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
@@ -3003,9 +3139,9 @@ function renderCalendar(){
         ${e.time?`<div class="td-sub">${fmtTime(e.time)}</div>`:''}
       </td>
       <td><div class="td-main">${e.title}</div>${e.location?`<div class="td-sub">📍 ${e.location}</div>`:''}</td>
-      <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:.82rem">
-        <span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:${memberColor(e.member)}"></span>
-        ${e.member||'—'}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.82rem;flex-wrap:wrap">
+        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${m}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
+      </span></td>
       <td><span class="type-badge type-${e.type}">${e.type}</span></td>
       <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes||'—'}</div></td>
       <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${e.recurrence.type}</span>`:''}</div></td>
@@ -3038,6 +3174,7 @@ function openCalDay(ds){
   toggleRecurOptions();
   const notice=document.getElementById('recurInstanceNotice');
   if(notice) notice.style.display='none';
+  buildEventMemberPicker([],[]);
   openModal('calModal');
 }
 
@@ -3061,16 +3198,23 @@ async function saveEvent(){
     if (recurEnd) recurrence.endDate = recurEnd;
   }
 
+  // Collect multi-member selections
+  const _selMembers=getEventSelectedMembers();
+  const _notifyMembers=getEventNotifyMembers();
+  const _primaryMember=_selMembers[0]||'';
+
   const baseRec = {
     title:              document.getElementById('cTitle').value,
     date:               startDate,
     endDate:            endDate&&endDate>=startDate?endDate:startDate,
     time:               document.getElementById('cTime').value,
     type:               document.getElementById('cType').value,
-    member:             document.getElementById('cMember').value,
+    member:             _primaryMember,   // keep for backward compat
+    members:            _selMembers,
+    notifyMembers:      _notifyMembers,
+    reminderRecipients: _notifyMembers.length?_notifyMembers:'all', // compat
     location:           document.getElementById('cLocation').value,
     notes:              document.getElementById('cNotes').value,
-    reminderRecipients: document.getElementById('cReminderRecipients')?.value||'all',
     updatedBy:          auth.currentUser?.displayName||'',
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp(),
   };
@@ -3123,11 +3267,13 @@ function editEvent(id, instanceDate=''){
   document.getElementById('cEndDate').value=e.endDate&&e.endDate!==e.date?e.endDate:'';
   document.getElementById('cTime').value=e.time||'';
   document.getElementById('cType').value=e.type||'general';
-  document.getElementById('cMember').value=e.member||appMembers[0]?.name||'';
+  document.getElementById('cMember').value=e.member||''; // compat hidden field
   document.getElementById('cLocation').value=e.location||'';
   document.getElementById('cNotes').value=e.notes||'';
-  const rr=document.getElementById('cReminderRecipients');
-  if(rr) rr.value=e.reminderRecipients||'all';
+  // Populate multi-member picker
+  const _selM=e.members&&e.members.length?e.members:(e.member?[e.member]:[]);
+  const _notifyM=e.notifyMembers&&e.notifyMembers.length?e.notifyMembers:(Array.isArray(e.reminderRecipients)?e.reminderRecipients:[]);
+  buildEventMemberPicker(_selM, _notifyM);
 
   // Recurrence fields
   const r = e.recurrence;
