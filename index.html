@@ -1547,6 +1547,7 @@ async function saveSettings(){
     serviceTypes:serviceTypes,
     eventTypes:eventTypes,
     authorizedUsers:appConfig.authorizedUsers||[],
+    authorizedEmails:(appConfig.authorizedUsers||[]).map(u=>u.email).filter(Boolean),
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
 }
