@@ -1858,9 +1858,9 @@ function openAdminMemberModal(id){
   if(document.getElementById('mcNickname')) document.getElementById('mcNickname').value=m?.nickname||'';
   document.getElementById('mcEmail').value=m?.email||'';
   document.getElementById('mcPhone').value=m?.phone||'';
-  // Set role — check member.role first, then fall back to authorizedUsers entry
+  // Set role — authorizedUsers is source of truth; member.role is a copy for display
   const authEntry=(appConfig.authorizedUsers||[]).find(u=>u.email&&m?.email&&u.email.toLowerCase()===m.email.toLowerCase());
-  document.getElementById('mcRole').value=m?.role||authEntry?.role||'contributor';
+  document.getElementById('mcRole').value=authEntry?.role||m?.role||'contributor';
   document.getElementById('mcColor').value=m?.color||MEMBER_COLORS[0];
   document.getElementById('memberColorPreview').style.background=m?.color||MEMBER_COLORS[0];
   document.getElementById('mcColorGrid').innerHTML=MEMBER_COLORS.map(c=>
@@ -1926,7 +1926,14 @@ async function saveAdminMember(){
   if(_email){
     const users=appConfig.authorizedUsers||[];
     const ui=users.findIndex(u=>u.email.toLowerCase()===_email);
-    if(ui>-1){users[ui].role=_role;users[ui].name=m.name;users[ui].updatedAt=new Date().toISOString();}
+    if(ui>-1){
+      // Warn before downgrading the last admin
+      if(users[ui].role==='admin' && _role!=='admin'){
+        const admins=users.filter(u=>u.role==='admin');
+        if(admins.length===1){toast('⚠️ Cannot remove the last admin role');return;}
+      }
+      users[ui].role=_role;users[ui].name=m.name;users[ui].updatedAt=new Date().toISOString();
+    }
     else users.push({email:_email,name:m.name,role:_role,addedAt:new Date().toISOString()});
     appConfig.authorizedUsers=users;
   }
