@@ -1330,23 +1330,18 @@
         <option value="denied">🚫 Denied — blocked from signing in</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>Color</label>
-      <div class="color-grid" id="mcColorGrid"></div>
-      <input type="hidden" id="mcColor" />
-    </div>
-    <div id="memberColorPreview" style="margin-top:12px;height:40px;border-radius:10px;transition:background .3s;"></div>
-    <div id="mcDeviceSection" style="margin-top:16px;display:none">
+    <!-- Device & Notification section — shown only when editing an existing member -->
+    <div id="mcDeviceSection" style="margin-top:4px;display:none">
       <!-- Device list -->
-      <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:12px">
+      <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:10px">
         <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:8px">📱 Registered Devices</div>
         <div id="mcDeviceList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
         <button class="btn btn-sm btn-primary" id="mcRegisterBtn" onclick="registerCurrentMemberDevice()">📱 Register This Device</button>
       </div>
       <!-- Notification subscriptions -->
-      <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100)">
+      <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:10px">
         <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:6px">🔔 Auto-notify me for event types</div>
-        <div style="font-size:.76rem;color:var(--gray-400);margin-bottom:10px">When these event types are created or upcoming, this member gets notified even if not assigned.</div>
+        <div style="font-size:.76rem;color:var(--gray-400);margin-bottom:10px">This member gets push notifications for these event types even when not assigned.</div>
         <div id="mcNotifyTypesWrap" style="display:flex;flex-wrap:wrap;gap:8px">
           <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" id="mcNotifyAll" style="width:auto" onchange="toggleNotifyAll(this)" /> All events</label>
           <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mc-notify-type" value="medical" style="width:auto" /> 🏥 Medical</label>
@@ -1358,6 +1353,12 @@
         </div>
       </div>
     </div>
+    <div class="form-group">
+      <label>Color</label>
+      <div class="color-grid" id="mcColorGrid"></div>
+      <input type="hidden" id="mcColor" />
+    </div>
+    <div id="memberColorPreview" style="margin-top:12px;height:40px;border-radius:10px;transition:background .3s;"></div>
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('adminMemberModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveAdminMember()">💾 Save Member</button>
