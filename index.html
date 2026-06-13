@@ -24,12 +24,21 @@
       appId:             "1:642422032748:web:cc9c6e2c7b9493f2728b49"
     };
     const HST_RATE = 0.13; // Ontario HST 13%
+    // FCM Web Push VAPID public key (safe to embed — private key managed by Firebase)
+    const VAPID_KEY = 'BA2Id1Ve3MY32gnW5nTeIzNdct_9lMGRvJZOCBu-u4x7djQV1UGfwsjYiTu-gzybRqjIByO8_Kb1rGjkHEvc5x8';
+    // Google Calendar Sync — Phase 4
+    // Replace with your OAuth 2.0 Client ID from Google Cloud Console
+    // (APIs & Services → Credentials → OAuth 2.0 Client IDs → Web application)
+    const GCAL_CLIENT_ID = 'YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com';
   </script>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+  <!-- Google Identity Services — for Google Calendar sync (Phase 4) -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -163,6 +172,10 @@
     .badge-overdue{background:#fee2e2;color:#991b1b;}
     .badge-overdue::before{background:var(--red);}
     .type-badge{padding:3px 9px;border-radius:6px;font-size:.71rem;font-weight:600;}
+    .day-check{display:inline-flex;align-items:center;cursor:pointer;}
+    .day-check input{position:absolute;opacity:0;width:0;height:0;}
+    .day-check span{display:inline-block;padding:5px 11px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--gray-50);font-size:.78rem;font-weight:600;color:var(--gray-500);transition:all .15s;}
+    .day-check input:checked+span{background:var(--blue);border-color:var(--blue);color:#fff;}
     .type-medical{background:#ede9fe;color:#5b21b6;}
     .type-vehicle{background:#fef3c7;color:#92400e;}
     .type-home{background:#d1fae5;color:#065f46;}
@@ -319,6 +332,33 @@
 
     /* MOBILE BOTTOM NAV */
     .mobile-bottom-nav{display:none;}
+
+    /* REMINDER BANNER */
+    .reminder-banner{background:#fff;border:1.5px solid var(--amber);border-radius:14px;margin:10px 16px 0;padding:12px 14px;box-shadow:0 2px 8px rgba(245,158,11,.15);z-index:100;position:relative;}
+    .reminder-banner-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+    .reminder-banner-title{font-weight:700;font-size:.88rem;color:var(--gray-800);}
+    .reminder-dismiss{background:none;border:none;cursor:pointer;font-size:1rem;color:var(--gray-400);padding:0 4px;line-height:1;}
+    .reminder-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray-100);}
+    .reminder-item:last-child{border-bottom:none;}
+    .reminder-item-icon{font-size:1.1rem;flex-shrink:0;}
+    .reminder-item-text{flex:1;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+    .reminder-item-title{font-size:.82rem;font-weight:600;color:var(--gray-800);}
+    .reminder-item-member{font-weight:400;color:var(--gray-500);}
+    .reminder-item-when{font-size:.75rem;font-weight:600;color:var(--amber);white-space:nowrap;}
+    .reminder-item-more{font-size:.75rem;color:var(--gray-400);padding-top:4px;text-align:center;}
+    /* NOTIFICATIONS ADMIN */
+    .device-reg-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100);}
+    .device-reg-row:last-child{border-bottom:none;}
+    .notif-leadtime-grid{display:flex;flex-wrap:wrap;gap:8px;}
+    .notif-lt-label{display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:500;color:var(--gray-700);background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:6px 12px;cursor:pointer;}
+    .notif-lt-label input{accent-color:var(--blue);}
+    /* TOGGLE SWITCH */
+    .toggle-switch{position:relative;display:inline-block;width:44px;height:24px;}
+    .toggle-switch input{opacity:0;width:0;height:0;}
+    .toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--gray-300);border-radius:24px;transition:.3s;}
+    .toggle-slider:before{position:absolute;content:'';height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
+    .toggle-switch input:checked + .toggle-slider{background:var(--blue);}
+    .toggle-switch input:checked + .toggle-slider:before{transform:translateX(20px);}
 
     /* PRINT */
     @media print{
@@ -812,7 +852,7 @@
         <div class="card-title" style="margin-bottom:16px">📋 Upcoming Events</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th></th></tr></thead>
+            <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th>Repeat</th><th></th></tr></thead>
             <tbody id="eventBody"></tbody>
           </table>
         </div>
@@ -1065,6 +1105,54 @@
           </div>
         </div>
       </div>
+      <!-- NOTIFICATIONS & REMINDERS -->
+      <div class="config-card" style="margin-bottom:20px" id="notifAdminPanel">
+        <div class="config-card-header">
+          <div class="config-card-title"><div class="config-card-icon ci-amber">🔔</div> Reminders &amp; Notifications</div>
+          <span class="save-indicator" id="notifSaved">Saved ✓</span>
+        </div>
+        <div class="config-card-body">
+          <div class="setting-row">
+            <div><div class="setting-label">Enable Reminders</div><div class="setting-desc">Show in-app alerts and push notifications for upcoming events, auto &amp; home due dates</div></div>
+            <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="cfgReminderEnabled" onchange="saveReminderSettings()" /><span class="toggle-slider"></span></label></div>
+          </div>
+          <div class="setting-row" style="align-items:flex-start;flex-direction:column;gap:8px;padding-bottom:14px">
+            <div class="setting-label">Reminder Lead Times</div>
+            <div class="setting-desc">When to send reminders before an event is due (select all that apply)</div>
+            <div class="notif-leadtime-grid" id="cfgLeadTimes"></div>
+          </div>
+          <div class="setting-label" style="margin-top:4px;margin-bottom:4px">📱 Device Registration for Push Notifications</div>
+          <div class="setting-desc" style="margin-bottom:12px">Register this browser/device for each household member to receive push notifications. Each member can register multiple devices.</div>
+          <div id="cfgDeviceList"></div>
+        </div>
+      </div>
+
+      <!-- GOOGLE CALENDAR SYNC SETUP -->
+      <div class="config-grid rbac-admin" style="margin-top:4px">
+        <div class="config-card" style="grid-column:1/-1">
+          <div class="config-card-header">
+            <div class="config-card-title"><div class="config-card-icon" style="background:linear-gradient(135deg,#4285f4,#34a853)">📆</div> Google Calendar Sync — Setup</div>
+          </div>
+          <div class="config-card-body">
+            <p style="font-size:.83rem;color:var(--gray-600);line-height:1.6;margin-bottom:10px">
+              One-time setup required to enable the 📆 Sync to Google Calendar button on each event.
+              Ani must complete these steps personally — do not share your credentials with anyone.
+            </p>
+            <ol style="font-size:.83rem;color:var(--gray-700);line-height:1.9;padding-left:1.3em;margin:0 0 14px">
+              <li>Go to <strong><a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">console.cloud.google.com</a></strong> → create or select a project</li>
+              <li>APIs &amp; Services → <strong>Enable APIs</strong> → search for and enable <strong>Google Calendar API</strong></li>
+              <li>APIs &amp; Services → <strong>Credentials</strong> → Create Credentials → <strong>OAuth 2.0 Client ID</strong></li>
+              <li>Application type: <strong>Web application</strong><br>
+                  Authorized JavaScript origins: <code style="background:var(--gray-100);padding:1px 5px;border-radius:4px">https://tracker.logicmanse.ca</code></li>
+              <li>Click Create → copy the <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>)</li>
+              <li>Open <code>index.html</code> and replace <code>YOUR_GOOGLE_OAUTH_CLIENT_ID</code> in the <code>GCAL_CLIENT_ID</code> constant with your Client ID</li>
+              <li>APIs &amp; Services → <strong>OAuth consent screen</strong> → add your Google account as a test user</li>
+            </ol>
+            <p style="font-size:.79rem;color:var(--gray-400)">🔒 Your OAuth token is obtained live in your browser — no credentials are stored in the app or sent to any server.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- USER ACCESS MANAGEMENT -->
       <div class="config-grid rbac-admin" style="margin-top:4px">
         <div class="config-card" style="grid-column:1/-1">
@@ -1396,6 +1484,15 @@
   <div class="modal">
     <div class="modal-title"><div class="title-icon cal">📅</div> Calendar Event</div>
     <input type="hidden" id="calEditId" />
+    <input type="hidden" id="calRecurInstanceDate" /><!-- date of recurring instance being edited -->
+    <!-- Recurring instance notice (shown when editing a single occurrence) -->
+    <div id="recurInstanceNotice" style="display:none;background:var(--amber-50,#fffbeb);border:1.5px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:.82rem;color:#92400e;line-height:1.45">
+      🔁 <strong>Recurring event</strong> — you're editing <span id="recurInstanceDateLabel"></span>.<br>
+      <label style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#78350f">
+        <input type="checkbox" id="editAllOccurrences" style="width:auto" />
+        Edit all future occurrences (entire series)
+      </label>
+    </div>
     <div class="form-row">
       <div class="form-group" style="grid-column:1/-1"><label>Event Title</label><input type="text" id="cTitle" placeholder="e.g. Annual Physical" /></div>
       <div class="form-group"><label>Start Date</label><input type="date" id="cDate" /></div>
@@ -1406,9 +1503,41 @@
         <select id="cType"></select>
       </div>
       <div class="form-group"><label>Family Member</label><select id="cMember"></select></div>
+      <div class="form-group"><label>Notify</label><select id="cReminderRecipients"><option value="all">👨‍👩‍👧‍👦 All Members (default)</option></select></div>
       <div class="form-group"><label>Location</label><input type="text" id="cLocation" placeholder="📍 Clinic, office..." /></div>
     </div>
     <div class="form-group"><label>Notes</label><textarea id="cNotes" placeholder="Prep needed, bring documents, etc."></textarea></div>
+
+    <!-- ── Recurrence ───────────────────────────────────── -->
+    <div class="form-row" style="margin-top:4px">
+      <div class="form-group">
+        <label>🔁 Repeat</label>
+        <select id="cRecur" onchange="toggleRecurOptions()">
+          <option value="">Does not repeat</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly (same date)</option>
+        </select>
+      </div>
+      <div class="form-group" id="recurEndGroup" style="display:none">
+        <label>End repeat <span style="font-weight:400;color:var(--gray-400)">(optional)</span></label>
+        <input type="date" id="cRecurEnd" />
+      </div>
+    </div>
+    <div id="weeklyDayPicker" style="display:none;margin-bottom:12px">
+      <div style="font-size:.73rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Repeat on</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <label class="day-check"><input type="checkbox" name="recurDay" value="0" /><span>Sun</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="1" /><span>Mon</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="2" /><span>Tue</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="3" /><span>Wed</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="4" /><span>Thu</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="5" /><span>Fri</span></label>
+        <label class="day-check"><input type="checkbox" name="recurDay" value="6" /><span>Sat</span></label>
+      </div>
+    </div>
+    <!-- ─────────────────────────────────────────────────── -->
+
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('calModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveEvent()">💾 Save Event</button>
@@ -1437,6 +1566,11 @@ let appConfig = {
   defaultTaxRate: 13,
   currency: '$',
   authorizedUsers: [],
+  reminderSettings: {
+    enabled: true,
+    leadTimes: [1, 7],           // days before: 1 day, 1 week (configurable in Admin)
+    channels: { inApp: true, push: true },
+  },
 };
 let currentUserRole = 'admin';
 let appVehicles = [
@@ -1500,6 +1634,7 @@ async function loadSettings(){
       if(d.serviceTypes&&d.serviceTypes.length) serviceTypes=d.serviceTypes;
       if(d.eventTypes&&d.eventTypes.length) eventTypes=d.eventTypes;
       if(d.authorizedUsers) appConfig.authorizedUsers=d.authorizedUsers;
+      if(d.reminderSettings) appConfig.reminderSettings={...appConfig.reminderSettings,...d.reminderSettings};
     }
     applySettings();
   } catch(e){ console.warn('Settings load error',e); applySettings(); }
@@ -1531,6 +1666,8 @@ function applySettings(){
   document.getElementById('adminVehicleCount').textContent=appVehicles.length+' Vehicle'+(appVehicles.length!==1?'s':'');
   document.getElementById('adminMemberCount').textContent=appMembers.length+' Member'+(appMembers.length!==1?'s':'');
   if(currentUserRole==='admin') renderUserAccess();
+  if(currentUserRole==='admin') renderAdminNotifications();
+  rebuildReminderRecipientsDropdown();
   const aTax=document.getElementById('aTaxRate'); if(aTax&&!aTax.dataset.userSet) aTax.value=appConfig.defaultTaxRate;
   const hTax=document.getElementById('hTaxRate'); if(hTax&&!hTax.dataset.userSet) hTax.value=appConfig.defaultTaxRate;
 }
@@ -1548,6 +1685,7 @@ async function saveSettings(){
     eventTypes:eventTypes,
     authorizedUsers:appConfig.authorizedUsers||[],
     authorizedEmails:(appConfig.authorizedUsers||[]).map(u=>u.email).filter(Boolean),
+    reminderSettings:appConfig.reminderSettings||{enabled:true,leadTimes:[1,7]},
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
 }
@@ -1761,6 +1899,201 @@ async function delAdminMember(id){
   applySettings();
   toast('🗑 Member removed');
 }
+
+// ─── NOTIFICATIONS / REMINDERS ─────────────────────────────────
+const LEAD_TIME_OPTIONS = [
+  {days:1,  label:'1 day before'},
+  {days:3,  label:'3 days before'},
+  {days:7,  label:'1 week before'},
+  {days:14, label:'2 weeks before'},
+];
+let messaging = null;
+
+function initFCM() {
+  try {
+    if (!firebase.messaging.isSupported()) return;
+    messaging = firebase.messaging();
+    messaging.onMessage(payload => {
+      const {title, body} = payload.notification || payload.data || {};
+      if (title) showBrowserNotification(title, body || '');
+    });
+  } catch(e) { console.warn('FCM init error', e); }
+}
+
+async function registerDeviceForMember(memberId) {
+  try {
+    if (!messaging) { toast('⚠️ Push notifications not supported in this browser'); return; }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { toast('⚠️ Notification permission denied'); return; }
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    if (!token) { toast('⚠️ Could not get device token'); return; }
+    const idx = appMembers.findIndex(m => m.id === memberId);
+    if (idx < 0) return;
+    const existing = appMembers[idx].fcmTokens || [];
+    if (!existing.includes(token)) {
+      appMembers[idx].fcmTokens = [...existing, token];
+      await saveSettings();
+      renderAdminNotifications();
+      toast('✅ Device registered for ' + appMembers[idx].name + '!');
+    } else {
+      toast('ℹ️ This device is already registered for ' + appMembers[idx].name);
+    }
+  } catch(e) { toast('⚠️ Registration failed: ' + e.message); }
+}
+
+async function unregisterDeviceForMember(memberId) {
+  try {
+    if (!messaging) return;
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    if (!token) return;
+    const idx = appMembers.findIndex(m => m.id === memberId);
+    if (idx < 0) return;
+    appMembers[idx].fcmTokens = (appMembers[idx].fcmTokens || []).filter(t => t !== token);
+    await saveSettings();
+    renderAdminNotifications();
+    toast('🗑 Device unregistered for ' + appMembers[idx].name);
+  } catch(e) { toast('⚠️ Unregister failed: ' + e.message); }
+}
+
+function renderAdminNotifications() {
+  const panel = document.getElementById('notifAdminPanel');
+  if (!panel) return;
+  const rs = appConfig.reminderSettings || {};
+  const enabled = rs.enabled !== false;
+  const leadTimes = rs.leadTimes || [1, 7];
+  const toggle = document.getElementById('cfgReminderEnabled');
+  if (toggle) toggle.checked = enabled;
+  const ltGrid = document.getElementById('cfgLeadTimes');
+  if (ltGrid) {
+    ltGrid.innerHTML = LEAD_TIME_OPTIONS.map(opt => `
+      <label class="notif-lt-label">
+        <input type="checkbox" value="${opt.days}" ${leadTimes.includes(opt.days) ? 'checked' : ''} onchange="saveReminderSettings()" />
+        ${opt.label}
+      </label>`).join('');
+  }
+  const devList = document.getElementById('cfgDeviceList');
+  if (devList) {
+    const allNames = appMembers.map(m=>m.name);
+    devList.innerHTML = appMembers.map(m => {
+      const tokenCount = (m.fcmTokens || []).length;
+      return `
+        <div class="device-reg-row">
+          <div class="member-swatch" style="background:${m.color};width:32px;height:32px;font-size:.7rem">${getInitials(m.name, allNames)}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:.85rem">${m.name}</div>
+            <div style="font-size:.75rem;color:var(--gray-500)">${tokenCount > 0 ? `📱 ${tokenCount} device${tokenCount>1?'s':''} registered` : '📵 No devices registered'}</div>
+          </div>
+          <div class="btn-actions">
+            <button class="btn btn-sm btn-primary" onclick="registerDeviceForMember('${m.id}')">📱 Register</button>
+            ${tokenCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="unregisterDeviceForMember('${m.id}')">Remove</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+async function saveReminderSettings() {
+  const enabled = document.getElementById('cfgReminderEnabled')?.checked !== false;
+  const leadTimes = Array.from(document.querySelectorAll('#cfgLeadTimes input:checked')).map(el => parseInt(el.value));
+  appConfig.reminderSettings = {
+    ...(appConfig.reminderSettings || {}),
+    enabled,
+    leadTimes: leadTimes.length ? leadTimes : [1, 7],
+  };
+  await saveSettings();
+  const notifSaved = document.getElementById('notifSaved');
+  if (notifSaved) notifSaved.textContent = '✅ Saved';
+  toast('✅ Reminder settings saved!');
+}
+
+async function showBrowserNotification(title, body) {
+  if (Notification.permission === 'granted') {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' });
+  }
+}
+
+function checkAndShowReminders() {
+  const rs = appConfig.reminderSettings || {};
+  if (rs.enabled === false) return;
+  const leadTimes = rs.leadTimes || [1, 7];
+  const maxDays = Math.max(...leadTimes);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const daysUntilDate = ds => {
+    if (!ds) return null;
+    const d = new Date(ds); d.setHours(0,0,0,0);
+    return Math.round((d - now) / 86400000);
+  };
+  const reminders = [];
+  events.forEach(e => {
+    const d = daysUntilDate(e.date);
+    if (d === null || d < 0 || d > maxDays) return;
+    if (leadTimes.some(lt => d <= lt)) {
+      const label = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
+      reminders.push({ icon: '📅', title: e.title, label, member: e.member, date: e.date });
+    }
+  });
+  autoRecords.forEach(r => {
+    const d = daysUntilDate(r.nextDate);
+    if (d === null || d < 0 || d > maxDays) return;
+    if (leadTimes.some(lt => d <= lt)) {
+      const veh = getVehicleForRecord(r);
+      const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
+      reminders.push({ icon: '🚗', title: `${r.service}${veh ? ' — ' + vehicleDisplayName(veh) : ''}`, label, date: r.nextDate });
+    }
+  });
+  homeItems.forEach(h => {
+    const d = daysUntilDate(h.nextDate);
+    if (d === null || d < 0 || d > maxDays) return;
+    if (leadTimes.some(lt => d <= lt)) {
+      const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
+      reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label, date: h.nextDate });
+    }
+  });
+  if (!reminders.length) return;
+  reminders.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+  showReminderBanner(reminders);
+  const urgent = reminders.filter(r => daysUntilDate(r.date) <= 1);
+  if (urgent.length && Notification.permission === 'granted') {
+    urgent.forEach(r => showBrowserNotification(`${r.icon} ${r.title}`, r.label));
+  }
+}
+
+function showReminderBanner(reminders) {
+  const existing = document.getElementById('reminderBanner');
+  if (existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'reminderBanner';
+  banner.className = 'reminder-banner';
+  banner.innerHTML = `
+    <div class="reminder-banner-header">
+      <span class="reminder-banner-title">🔔 ${reminders.length} Upcoming Reminder${reminders.length > 1 ? 's' : ''}</span>
+      <button class="reminder-dismiss" onclick="document.getElementById('reminderBanner').remove()">✕</button>
+    </div>
+    <div class="reminder-banner-items">
+      ${reminders.slice(0, 5).map(r => `
+        <div class="reminder-item">
+          <span class="reminder-item-icon">${r.icon}</span>
+          <div class="reminder-item-text">
+            <span class="reminder-item-title">${r.title}${r.member ? ` <span class="reminder-item-member">· ${r.member}</span>` : ''}</span>
+            <span class="reminder-item-when">${r.label}</span>
+          </div>
+        </div>`).join('')}
+      ${reminders.length > 5 ? `<div class="reminder-item-more">+${reminders.length-5} more</div>` : ''}
+    </div>`;
+  const nav = document.querySelector('nav');
+  if (nav) nav.after(banner);
+}
+
+function rebuildReminderRecipientsDropdown() {
+  const sel = document.getElementById('cReminderRecipients');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">👨‍👩‍👧‍👦 All Members (default)</option>' +
+    appMembers.map(m => `<option value="${m.name}">${m.name} only</option>`).join('');
+  if (cur) sel.value = cur;
+}
+// ─── END NOTIFICATIONS / REMINDERS ─────────────────────────────
 
 const CAT_ICONS={'HVAC':'💨','Appliances':'🏠','Plumbing':'🚿','Electrical':'⚡','Lawn & Garden':'🌿','Cleaning':'🧹','Pest Control':'🐛','Pool':'🏊','Roof':'🏗️','Other':'📦'};
 
@@ -2033,18 +2366,21 @@ auth.onAuthStateChanged(async user => {
 // ─── REAL-TIME LISTENERS ──────────────────────────────────────
 function startListeners() {
   setSyncStatus('connecting');
+  let initialLoad = 0;
+  const maybeCheckReminders = () => { if (++initialLoad >= 3) checkAndShowReminders(); };
   unsubs.push(db.collection('autoRecords').orderBy('lastDate','desc').onSnapshot(s=>{
     autoRecords = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderAuto(); renderSummary(); setSyncStatus('live');
+    renderAuto(); renderSummary(); setSyncStatus('live'); maybeCheckReminders();
   }, ()=>setSyncStatus('offline')));
   unsubs.push(db.collection('homeItems').orderBy('nextDate','asc').onSnapshot(s=>{
     homeItems = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderHome(); renderSummary();
+    renderHome(); renderSummary(); maybeCheckReminders();
   }));
   unsubs.push(db.collection('events').orderBy('date','asc').onSnapshot(s=>{
     events = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderCalendar(); renderSummary();
+    renderCalendar(); renderSummary(); maybeCheckReminders();
   }));
+  initFCM();
 }
 
 function setSyncStatus(s) {
@@ -2487,12 +2823,73 @@ async function delHome(id){
 }
 
 // ─── CALENDAR ──────────────────────────────────────
+
+// Returns true if a recurring event (with recurrence config) falls on date string ds
+function isRecurringOnDay(e, ds) {
+  if (!e.recurrence || !e.recurrence.type) return false;
+  const start = e.date;
+  if (!start || ds < start) return false;
+  if (e.recurrence.endDate && ds > e.recurrence.endDate) return false;
+  // Check if this date is in the exceptions list on the event itself
+  const exceptions = e.recurrence.exceptions || [];
+  if (exceptions.includes(ds)) return false;
+
+  const startD = new Date(start + 'T00:00:00');
+  const checkD = new Date(ds   + 'T00:00:00');
+  const diffMs   = checkD - startD;
+  const diffDays = Math.round(diffMs / 86400000);
+
+  if (e.recurrence.type === 'daily') {
+    const interval = e.recurrence.interval || 1;
+    return diffDays >= 0 && diffDays % interval === 0;
+  }
+  if (e.recurrence.type === 'weekly') {
+    if (diffDays < 0) return false;
+    const interval  = e.recurrence.interval || 1;
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks % interval !== 0) return false;
+    const daysOfWeek = e.recurrence.daysOfWeek && e.recurrence.daysOfWeek.length
+      ? e.recurrence.daysOfWeek
+      : [startD.getDay()];
+    return daysOfWeek.includes(checkD.getDay());
+  }
+  if (e.recurrence.type === 'monthly') {
+    const interval  = e.recurrence.interval || 1;
+    const startM    = startD.getFullYear() * 12 + startD.getMonth();
+    const checkM    = checkD.getFullYear() * 12 + checkD.getMonth();
+    const diffM     = checkM - startM;
+    if (diffM < 0 || diffM % interval !== 0) return false;
+    return checkD.getDate() === startD.getDate();
+  }
+  return false;
+}
+
 function eventsOnDay(ds) {
-  return events.filter(e => {
-    const start = e.date || '';
-    const end   = e.endDate || e.date || '';
-    return start && ds >= start && ds <= end;
+  const result = [];
+  events.forEach(e => {
+    // Skip exception docs here — they're handled in the second pass
+    if (e.recurringParentId) return;
+
+    if (e.recurrence && e.recurrence.type) {
+      // Recurring series: check if this date matches the pattern
+      if (!isRecurringOnDay(e, ds)) return;
+      // Skip if a standalone exception event exists for this date
+      const hasException = events.some(ex => ex.recurringParentId === e.id && ex.exceptionDate === ds);
+      if (hasException) return;
+      // Push a virtual instance (not a Firestore doc — clone with extra flags)
+      result.push({ ...e, _instanceDate: ds, _isRecurringInstance: true });
+    } else {
+      // Regular one-off or date-range event
+      const start = e.date || '';
+      const end   = e.endDate || e.date || '';
+      if (start && ds >= start && ds <= end) result.push(e);
+    }
   });
+  // Second pass: add exception events that land on this date
+  events.forEach(e => {
+    if (e.recurringParentId && e.date === ds) result.push(e);
+  });
+  return result;
 }
 
 function renderCalendar(){
@@ -2524,7 +2921,8 @@ function renderCalendar(){
         const isStart=ds===e.date;
         const isEnd=ds===(e.endDate||e.date);
         const rangeClass=isRange(e)?(isStart&&isEnd?'':isStart?'range-start':isEnd?'range-end':'range-mid'):'';
-        return `<div class="cal-event ${mClass(e)} ${rangeClass}" style="background:${mColor(e)}">${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}</div>`;
+        const instDate = e._isRecurringInstance ? e._instanceDate : '';
+        return `<div class="cal-event ${mClass(e)} ${rangeClass}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}</div>`;
       }).join('')}
       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
@@ -2549,11 +2947,13 @@ function renderCalendar(){
         ${e.member||'—'}</span></td>
       <td><span class="type-badge type-${e.type}">${e.type}</span></td>
       <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes||'—'}</div></td>
+      <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${e.recurrence.type}</span>`:''}</div></td>
       <td><div class="btn-actions">
-        <button class="btn-icon btn-edit" onclick="editEvent('${e.id}')">✏️</button>
-        <button class="btn-icon btn-del"  onclick="delEvent('${e.id}')">🗑</button>
+        <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${e.id}')">📆</button>
+        <button class="btn-icon btn-edit" onclick="editEvent('${e.id}','')">✏️</button>
+        <button class="btn-icon btn-del"  onclick="delEvent('${e.id}','')">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
+    </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
 }
 
 function changeMonth(dir){
@@ -2562,46 +2962,273 @@ function changeMonth(dir){
   renderCalendar();
 }
 function goToday(){ calYear=NOW.getFullYear(); calMonth=NOW.getMonth(); renderCalendar(); }
-function openCalDay(ds){ document.getElementById('cDate').value=ds; openModal('calModal'); }
+function openCalDay(ds){
+  document.getElementById('calEditId').value='';
+  document.getElementById('calRecurInstanceDate').value='';
+  document.getElementById('cTitle').value='';
+  document.getElementById('cDate').value=ds;
+  document.getElementById('cEndDate').value='';
+  document.getElementById('cTime').value='';
+  document.getElementById('cLocation').value='';
+  document.getElementById('cNotes').value='';
+  const recurSel=document.getElementById('cRecur'); if(recurSel) recurSel.value='';
+  const recurEndEl=document.getElementById('cRecurEnd'); if(recurEndEl) recurEndEl.value='';
+  document.querySelectorAll('input[name="recurDay"]').forEach(cb=>cb.checked=false);
+  toggleRecurOptions();
+  const notice=document.getElementById('recurInstanceNotice');
+  if(notice) notice.style.display='none';
+  openModal('calModal');
+}
 
 async function saveEvent(){
-  const id=document.getElementById('calEditId').value;
-  const startDate=document.getElementById('cDate').value;
-  const endDate=document.getElementById('cEndDate').value;
-  const rec={
-    title:document.getElementById('cTitle').value,
-    date:startDate,
-    endDate:endDate&&endDate>=startDate?endDate:startDate,
-    time:document.getElementById('cTime').value,
-    type:document.getElementById('cType').value,
-    member:document.getElementById('cMember').value,
-    location:document.getElementById('cLocation').value,
-    notes:document.getElementById('cNotes').value,
-    updatedBy:auth.currentUser?.displayName||'',
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  const id              = document.getElementById('calEditId').value;
+  const instanceDate    = document.getElementById('calRecurInstanceDate').value;
+  const editAllFuture   = document.getElementById('editAllOccurrences')?.checked;
+  const startDate       = document.getElementById('cDate').value;
+  const endDate         = document.getElementById('cEndDate').value;
+  const recurType       = document.getElementById('cRecur').value;
+
+  // Build recurrence object
+  let recurrence = null;
+  if (recurType) {
+    recurrence = { type: recurType, interval: 1 };
+    if (recurType === 'weekly') {
+      const checked = [...document.querySelectorAll('input[name="recurDay"]:checked')].map(cb=>parseInt(cb.value));
+      recurrence.daysOfWeek = checked.length ? checked : [new Date(startDate+'T00:00:00').getDay()];
+    }
+    const recurEnd = document.getElementById('cRecurEnd').value;
+    if (recurEnd) recurrence.endDate = recurEnd;
+  }
+
+  const baseRec = {
+    title:              document.getElementById('cTitle').value,
+    date:               startDate,
+    endDate:            endDate&&endDate>=startDate?endDate:startDate,
+    time:               document.getElementById('cTime').value,
+    type:               document.getElementById('cType').value,
+    member:             document.getElementById('cMember').value,
+    location:           document.getElementById('cLocation').value,
+    notes:              document.getElementById('cNotes').value,
+    reminderRecipients: document.getElementById('cReminderRecipients')?.value||'all',
+    updatedBy:          auth.currentUser?.displayName||'',
+    updatedAt:          firebase.firestore.FieldValue.serverTimestamp(),
   };
-  if(id) await db.collection('events').doc(id).set(rec);
-  else   await db.collection('events').add(rec);
+
+  // ── Case 1: editing a specific occurrence of a recurring series ──
+  if (instanceDate && id && !editAllFuture) {
+    // Create a standalone exception event for this occurrence
+    const exceptionRec = {
+      ...baseRec,
+      date:              instanceDate,
+      endDate:           instanceDate,
+      recurringParentId: id,
+      exceptionDate:     instanceDate,
+      recurrence:        null,
+    };
+    await db.collection('events').add(exceptionRec);
+    // Mark this date as an exception on the parent so the series skips it
+    const parentSnap = await db.collection('events').doc(id).get();
+    const parentData = parentSnap.data() || {};
+    const existingExceptions = (parentData.recurrence?.exceptions) || [];
+    await db.collection('events').doc(id).update({
+      'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
+    });
+    closeModal('calModal'); toast('✅ This occurrence updated!');
+    return;
+  }
+
+  // ── Case 2: new event or editing entire series / non-recurring ──
+  const rec = { ...baseRec };
+  if (recurrence) {
+    rec.recurrence = recurrence;
+  } else {
+    // Explicitly clear recurrence when removing it
+    rec.recurrence = null;
+  }
+  if (id) await db.collection('events').doc(id).set(rec);
+  else    await db.collection('events').add(rec);
   closeModal('calModal'); toast('✅ Event saved!');
 }
 
-function editEvent(id){
+function editEvent(id, instanceDate=''){
   const e=events.find(x=>x.id===id);
+  if(!e) return;
   document.getElementById('calEditId').value=e.id;
+  document.getElementById('calRecurInstanceDate').value=instanceDate||'';
   document.getElementById('cTitle').value=e.title||'';
-  document.getElementById('cDate').value=e.date||'';
+  // If editing a specific instance, show that date; otherwise show series start date
+  const displayDate = instanceDate || e.date || '';
+  document.getElementById('cDate').value=displayDate;
   document.getElementById('cEndDate').value=e.endDate&&e.endDate!==e.date?e.endDate:'';
   document.getElementById('cTime').value=e.time||'';
   document.getElementById('cType').value=e.type||'general';
   document.getElementById('cMember').value=e.member||appMembers[0]?.name||'';
   document.getElementById('cLocation').value=e.location||'';
   document.getElementById('cNotes').value=e.notes||'';
+  const rr=document.getElementById('cReminderRecipients');
+  if(rr) rr.value=e.reminderRecipients||'all';
+
+  // Recurrence fields
+  const r = e.recurrence;
+  const recurSel = document.getElementById('cRecur');
+  if(recurSel) recurSel.value = (r&&r.type) ? r.type : '';
+  // Uncheck all day boxes, then re-check saved ones
+  document.querySelectorAll('input[name="recurDay"]').forEach(cb=>{
+    cb.checked = r&&r.type==='weekly'&&r.daysOfWeek ? r.daysOfWeek.includes(parseInt(cb.value)) : false;
+  });
+  const recurEndEl = document.getElementById('cRecurEnd');
+  if(recurEndEl) recurEndEl.value = (r&&r.endDate) ? r.endDate : '';
+  toggleRecurOptions();
+
+  // Show / hide the "editing a single occurrence" notice
+  const notice = document.getElementById('recurInstanceNotice');
+  const editAllCb = document.getElementById('editAllOccurrences');
+  if(instanceDate && r && r.type) {
+    notice.style.display='';
+    editAllCb.checked=false;
+    const d = new Date(instanceDate+'T00:00:00');
+    document.getElementById('recurInstanceDateLabel').textContent =
+      d.toLocaleDateString('en-CA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  } else {
+    notice.style.display='none';
+    if(editAllCb) editAllCb.checked=false;
+  }
+
   openModal('calModal');
 }
 
-async function delEvent(id){
-  if(!confirm('Delete?')) return;
-  await db.collection('events').doc(id).delete(); toast('🗑 Event deleted');
+function toggleRecurOptions(){
+  const val = document.getElementById('cRecur')?.value||'';
+  const recurEndGroup   = document.getElementById('recurEndGroup');
+  const weeklyDayPicker = document.getElementById('weeklyDayPicker');
+  if(recurEndGroup)   recurEndGroup.style.display   = val ? ''     : 'none';
+  if(weeklyDayPicker) weeklyDayPicker.style.display  = val==='weekly' ? '' : 'none';
+  // If no recurrence chosen, also hide the instance-editing notice
+  if(!val){
+    const notice=document.getElementById('recurInstanceNotice');
+    if(notice) notice.style.display='none';
+  }
+}
+
+async function delEvent(id, instanceDate=''){
+  const e = events.find(x=>x.id===id);
+  if(!e) return;
+
+  if(instanceDate && e.recurrence && e.recurrence.type) {
+    // Deleting one occurrence of a recurring series
+    if(!confirm(`Remove only the ${instanceDate} occurrence of "${e.title}"?`)) return;
+    const existing = e.recurrence.exceptions || [];
+    await db.collection('events').doc(id).update({
+      'recurrence.exceptions': [...new Set([...existing, instanceDate])],
+    });
+    toast('🗑 Occurrence removed');
+    return;
+  }
+
+  // Deleting the whole event (or series)
+  const msg = (e.recurrence && e.recurrence.type)
+    ? `Delete the ENTIRE series for "${e.title}"? This removes all occurrences.`
+    : 'Delete this event?';
+  if(!confirm(msg)) return;
+  await db.collection('events').doc(id).delete();
+  toast('🗑 Event deleted');
+}
+
+// ─── GOOGLE CALENDAR SYNC (Phase 4) ───────────────
+// One-way sync: app → Google Calendar
+// Ani must complete the Google Cloud Console setup (see CLAUDE.md Phase 4 steps)
+// before this feature will work. The GCAL_CLIENT_ID placeholder must be replaced.
+
+let _gcalTokenClient = null;
+let _pendingGCalEventId = null;
+
+function syncToGCal(eventId) {
+  if (!GCAL_CLIENT_ID || GCAL_CLIENT_ID.startsWith('YOUR_')) {
+    toast('⚙️ Google Calendar not configured yet — see Admin → Google Calendar Setup');
+    return;
+  }
+  const e = events.find(x => x.id === eventId);
+  if (!e) return;
+  _pendingGCalEventId = eventId;
+
+  if (!_gcalTokenClient) {
+    // Lazy-init the token client
+    if (typeof google === 'undefined' || !google.accounts) {
+      toast('❌ Google Identity Services not loaded');
+      return;
+    }
+    _gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GCAL_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/calendar.events',
+      callback: _onGCalToken,
+    });
+  }
+  // Request token; if already granted it returns immediately without UI
+  _gcalTokenClient.requestAccessToken({ prompt: '' });
+}
+
+function _onGCalToken(response) {
+  if (response.error || !response.access_token) {
+    toast('❌ Google auth failed: ' + (response.error || 'no token'));
+    _pendingGCalEventId = null;
+    return;
+  }
+  const e = events.find(x => x.id === _pendingGCalEventId);
+  _pendingGCalEventId = null;
+  if (!e) return;
+  _doSyncToGCal(e, response.access_token);
+}
+
+async function _doSyncToGCal(e, token) {
+  // Build start/end in Google Calendar format
+  const hasTime  = !!e.time;
+  const tz       = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Toronto';
+  const startStr = e.date + (hasTime ? `T${e.time}:00` : '');
+  // End: 1 hour after start if timed; otherwise next day if single-day
+  let endStr;
+  if (hasTime) {
+    const [hh, mm] = e.time.split(':').map(Number);
+    const endH = String(hh + 1).padStart(2, '0');
+    endStr = e.date + `T${endH}:${String(mm).padStart(2,'0')}:00`;
+  } else {
+    const endD = new Date((e.endDate || e.date) + 'T00:00:00');
+    endD.setDate(endD.getDate() + 1); // GCal all-day end is exclusive
+    endStr = endD.toISOString().slice(0, 10);
+  }
+
+  const body = {
+    summary:     e.title,
+    description: [e.notes || '', e.member ? `Member: ${e.member}` : ''].filter(Boolean).join('\n'),
+    location:    e.location || '',
+    start: hasTime ? { dateTime: startStr, timeZone: tz } : { date: startStr },
+    end:   hasTime ? { dateTime: endStr,   timeZone: tz } : { date: endStr },
+  };
+
+  const gcalId = e.gcalEventId;
+  const url    = gcalId
+    ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalId}`
+    : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+  const method = gcalId ? 'PUT' : 'POST';
+
+  try {
+    const res  = await fetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.id) {
+      // Persist the Google Calendar event ID so future syncs do a PUT (update) not POST
+      await db.collection('events').doc(e.id).update({ gcalEventId: data.id });
+      toast('📆 Synced to Google Calendar!');
+    } else {
+      console.error('GCal API error:', data);
+      toast('❌ Sync failed: ' + (data.error?.message || 'Check console'));
+    }
+  } catch (err) {
+    console.error('GCal sync error:', err);
+    toast('❌ Sync error: ' + err.message);
+  }
 }
 
 // ─── REPORTS ──────────────────────────────────────
