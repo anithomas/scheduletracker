@@ -1054,10 +1054,13 @@
 
       <div class="config-card" style="margin-bottom:20px">
         <div class="config-card-header">
-          <div class="config-card-title"><div class="config-card-icon ci-rose">👥</div> Family Members</div>
+          <div class="config-card-title"><div class="config-card-icon ci-rose">👥</div> Family Members &amp; Access</div>
           <button class="btn btn-primary" onclick="openAdminMemberModal()">+ Add Member</button>
         </div>
         <div class="config-card-body">
+          <p style="font-size:.76rem;color:var(--gray-500);margin-bottom:12px;line-height:1.5">
+            Each member's Google email controls sign-in access. Set their role here: <strong>👑 Admin</strong> — full access &nbsp;·&nbsp; <strong>✏️ Contributor</strong> — add/edit &nbsp;·&nbsp; <strong>👁 Viewer</strong> — read-only &nbsp;·&nbsp; <strong>🚫 Denied</strong> — blocked
+          </p>
           <div class="member-config-list" id="adminMemberList">
             <div class="empty-state" style="padding:20px"><div class="empty-icon">👥</div><p>No members configured</p></div>
           </div>
@@ -1121,62 +1124,12 @@
             <div class="setting-desc">When to send reminders before an event is due (select all that apply)</div>
             <div class="notif-leadtime-grid" id="cfgLeadTimes"></div>
           </div>
-          <div class="setting-label" style="margin-top:4px;margin-bottom:4px">📱 Device Registration for Push Notifications</div>
-          <div class="setting-desc" style="margin-bottom:12px">Register this browser/device for each household member to receive push notifications. Each member can register multiple devices.</div>
-          <div id="cfgDeviceList"></div>
-        </div>
-      </div>
-
-      <!-- GOOGLE CALENDAR SYNC SETUP -->
-      <div class="config-grid rbac-admin" style="margin-top:4px">
-        <div class="config-card" style="grid-column:1/-1">
-          <div class="config-card-header">
-            <div class="config-card-title"><div class="config-card-icon" style="background:linear-gradient(135deg,#4285f4,#34a853)">📆</div> Google Calendar Sync — Setup</div>
-          </div>
-          <div class="config-card-body">
-            <p style="font-size:.83rem;color:var(--gray-600);line-height:1.6;margin-bottom:10px">
-              One-time setup required to enable the 📆 Sync to Google Calendar button on each event.
-              Ani must complete these steps personally — do not share your credentials with anyone.
-            </p>
-            <ol style="font-size:.83rem;color:var(--gray-700);line-height:1.9;padding-left:1.3em;margin:0 0 14px">
-              <li>Go to <strong><a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">console.cloud.google.com</a></strong> → create or select a project</li>
-              <li>APIs &amp; Services → <strong>Enable APIs</strong> → search for and enable <strong>Google Calendar API</strong></li>
-              <li>APIs &amp; Services → <strong>Credentials</strong> → Create Credentials → <strong>OAuth 2.0 Client ID</strong></li>
-              <li>Application type: <strong>Web application</strong><br>
-                  Authorized JavaScript origins: <code style="background:var(--gray-100);padding:1px 5px;border-radius:4px">https://tracker.logicmanse.ca</code></li>
-              <li>Click Create → copy the <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>)</li>
-              <li>Open <code>index.html</code> and replace <code>YOUR_GOOGLE_OAUTH_CLIENT_ID</code> in the <code>GCAL_CLIENT_ID</code> constant with your Client ID</li>
-              <li>APIs &amp; Services → <strong>OAuth consent screen</strong> → add your Google account as a test user</li>
-            </ol>
-            <p style="font-size:.79rem;color:var(--gray-400)">🔒 Your OAuth token is obtained live in your browser — no credentials are stored in the app or sent to any server.</p>
+          <div class="setting-desc" style="margin-top:4px;padding:10px 12px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-100)">
+            💡 To register devices for push notifications, open <strong>Family Members</strong> above, edit each member, and click <strong>📱 Register This Device</strong> on their profile.
           </div>
         </div>
       </div>
 
-      <!-- USER ACCESS MANAGEMENT -->
-      <div class="config-grid rbac-admin" style="margin-top:4px">
-        <div class="config-card" style="grid-column:1/-1">
-          <div class="config-card-header">
-            <div class="config-card-title"><div class="config-card-icon ci-rose">🔐</div> User Access &amp; Roles</div>
-            <span id="userAccessSaved" class="save-indicator">✅ Saved</span>
-          </div>
-          <div class="config-card-body">
-            <p class="rbac-note">Control who can sign in and what they can do.<br>
-              <strong>👑 Admin</strong> – full access &nbsp;|&nbsp; <strong>✏️ Contributor</strong> – add/edit/view, no admin &nbsp;|&nbsp; <strong>👁 Viewer</strong> – read-only &nbsp;|&nbsp; <strong>🚫 Denied</strong> – blocked</p>
-            <div class="user-access-list" id="userAccessList"></div>
-            <div class="add-user-row">
-              <input type="email" id="newUserEmail" placeholder="user@gmail.com" class="tag-add-input" />
-              <select id="newUserRole" class="role-select">
-                <option value="contributor">✏️ Contributor</option>
-                <option value="viewer">👁 Viewer</option>
-                <option value="admin">👑 Admin</option>
-                <option value="denied">🚫 Denied</option>
-              </select>
-              <button class="btn btn-primary" onclick="addAuthorizedUser()" style="white-space:nowrap">+ Add User</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div><!-- /admin -->
 
     <!-- ABOUT -->
@@ -1358,12 +1311,39 @@
       <div class="form-group"><label>Full Name</label><input type="text" id="mcName" placeholder="e.g. Anju Thomas" /></div>
       <div class="form-group"><label>Nickname (optional)</label><input type="text" id="mcNickname" placeholder="e.g. Anju" /></div>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Google Email <span style="font-size:.72rem;color:var(--gray-400)">(for sign-in &amp; access)</span></label>
+        <input type="email" id="mcEmail" placeholder="member@gmail.com" />
+      </div>
+      <div class="form-group">
+        <label>Mobile Number <span style="font-size:.72rem;color:var(--gray-400)">(for notifications)</span></label>
+        <input type="tel" id="mcPhone" placeholder="+1-416-555-0100" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Access Role</label>
+      <select id="mcRole" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:.9rem;background:#fff;color:var(--gray-800)">
+        <option value="contributor">✏️ Contributor — can add &amp; edit records</option>
+        <option value="viewer">👁 Viewer — read-only access</option>
+        <option value="admin">👑 Admin — full access including settings</option>
+        <option value="denied">🚫 Denied — blocked from signing in</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>Color</label>
       <div class="color-grid" id="mcColorGrid"></div>
       <input type="hidden" id="mcColor" />
     </div>
     <div id="memberColorPreview" style="margin-top:12px;height:40px;border-radius:10px;transition:background .3s;"></div>
+    <div id="mcDeviceSection" style="margin-top:16px;padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);display:none">
+      <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:4px">📱 Push Notifications — This Device</div>
+      <div id="mcDeviceStatusText" style="font-size:.78rem;color:var(--gray-500);margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" id="mcRegisterBtn" onclick="registerCurrentMemberDevice()">📱 Register This Device</button>
+        <button class="btn btn-sm btn-ghost" id="mcUnregisterBtn" onclick="unregisterCurrentMemberDevice()" style="display:none">🗑 Remove Device</button>
+      </div>
+    </div>
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('adminMemberModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveAdminMember()">💾 Save Member</button>
@@ -1845,18 +1825,30 @@ function renderAdminMembers(){
   if(!list) return;
   if(!appMembers.length){list.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-icon">👥</div><p>No members configured</p></div>';return;}
   const _allNames=appMembers.map(m=>m.name);
-  list.innerHTML=appMembers.map(m=>`
-    <div class="member-config-item">
-      <div class="member-swatch" style="background:${m.color}">${getInitials(m.name,_allNames)}</div>
-      <div>
-        <div class="member-config-name">${m.name}${m.nickname?` <span style="font-size:.72rem;color:var(--gray-400)">(${m.nickname})</span>`:''}</div>
-        <div class="member-config-color">${m.color}</div>
+  const ROLE_BADGE={admin:'<span class="role-badge" style="background:#fef3c7;color:#92400e">👑 Admin</span>',contributor:'<span class="role-badge" style="background:#dbeafe;color:#1e40af">✏️ Contributor</span>',viewer:'<span class="role-badge" style="background:#f0fdf4;color:#166534">👁 Viewer</span>',denied:'<span class="role-badge" style="background:#fee2e2;color:#991b1b">🚫 Denied</span>'};
+  list.innerHTML=appMembers.map(m=>{
+    const role=m.role||'contributor';
+    const deviceCount=(m.fcmTokens||[]).length;
+    const meta=[];
+    if(m.email) meta.push(`📧 ${m.email}`);
+    if(m.phone) meta.push(`📞 ${m.phone}`);
+    if(deviceCount>0) meta.push(`📱 ${deviceCount} device${deviceCount>1?'s':''}`);
+    return `
+    <div class="member-config-item" style="align-items:flex-start;padding:12px 0">
+      <div class="member-swatch" style="background:${m.color};flex-shrink:0;margin-top:2px">${getInitials(m.name,_allNames)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="member-config-name">${m.name}${m.nickname?` <span style="font-size:.72rem;color:var(--gray-400)">(${m.nickname})</span>`:''}</span>
+          ${ROLE_BADGE[role]||ROLE_BADGE.contributor}
+        </div>
+        ${meta.length?`<div style="font-size:.75rem;color:var(--gray-400);margin-top:3px;line-height:1.6">${meta.join(' &nbsp;·&nbsp; ')}</div>`:'<div style="font-size:.74rem;color:var(--amber);margin-top:2px">⚠️ No email set — member cannot sign in</div>'}
       </div>
-      <div class="btn-actions" style="margin-left:auto">
-        <button class="btn-icon btn-edit" onclick="openAdminMemberModal('${m.id}')" title="Edit">✏️</button>
-        <button class="btn-icon btn-del" onclick="delAdminMember('${m.id}')" title="Remove">🗑</button>
+      <div class="btn-actions" style="flex-shrink:0">
+        <button class="btn-icon btn-edit" onclick="openAdminMemberModal('${m.id}')" title="Edit member">✏️</button>
+        <button class="btn-icon btn-del" onclick="delAdminMember('${m.id}')" title="Remove member">🗑</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openAdminMemberModal(id){
@@ -1864,12 +1856,41 @@ function openAdminMemberModal(id){
   document.getElementById('memberCfgId').value=id||'';
   document.getElementById('mcName').value=m?.name||'';
   if(document.getElementById('mcNickname')) document.getElementById('mcNickname').value=m?.nickname||'';
+  document.getElementById('mcEmail').value=m?.email||'';
+  document.getElementById('mcPhone').value=m?.phone||'';
+  // Set role — check member.role first, then fall back to authorizedUsers entry
+  const authEntry=(appConfig.authorizedUsers||[]).find(u=>u.email&&m?.email&&u.email.toLowerCase()===m.email.toLowerCase());
+  document.getElementById('mcRole').value=m?.role||authEntry?.role||'contributor';
   document.getElementById('mcColor').value=m?.color||MEMBER_COLORS[0];
   document.getElementById('memberColorPreview').style.background=m?.color||MEMBER_COLORS[0];
   document.getElementById('mcColorGrid').innerHTML=MEMBER_COLORS.map(c=>
     `<button class="color-swatch-btn${m?.color===c?' selected':''}" style="background:${c}" onclick="selectMemberColor('${c}',this)" title="${c}"></button>`
   ).join('');
+  // Show device section only when editing an existing member
+  const devSection=document.getElementById('mcDeviceSection');
+  if(m && devSection){
+    devSection.style.display='block';
+    const count=(m.fcmTokens||[]).length;
+    document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet. Click below to register this browser/device.';
+    // Check if current device is already registered by getting current token asynchronously
+    _updateMemberDeviceBtnState(m);
+  } else if(devSection){
+    devSection.style.display='none';
+  }
   openModal('adminMemberModal');
+}
+
+async function _updateMemberDeviceBtnState(m){
+  try{
+    if(!messaging) return;
+    const swReg=await navigator.serviceWorker.ready;
+    const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
+    const isReg=token&&(m.fcmTokens||[]).includes(token);
+    const regBtn=document.getElementById('mcRegisterBtn');
+    const unregBtn=document.getElementById('mcUnregisterBtn');
+    if(regBtn) regBtn.style.display=isReg?'none':'inline-flex';
+    if(unregBtn) unregBtn.style.display=isReg?'inline-flex':'none';
+  }catch(e){}
 }
 
 function selectMemberColor(c,btn){
@@ -1882,10 +1903,33 @@ function selectMemberColor(c,btn){
 async function saveAdminMember(){
   const id=document.getElementById('memberCfgId').value;
   const _nick=document.getElementById('mcNickname')?.value.trim()||'';
-  const m={id:id||'m'+Date.now(),name:document.getElementById('mcName').value.trim(),nickname:_nick,color:document.getElementById('mcColor').value||MEMBER_COLORS[0]};
+  const _email=(document.getElementById('mcEmail')?.value.trim()||'').toLowerCase();
+  const _phone=document.getElementById('mcPhone')?.value.trim()||'';
+  const _role=document.getElementById('mcRole')?.value||'contributor';
+  // Preserve existing fcmTokens when editing
+  const existing=id?appMembers.find(x=>x.id===id):null;
+  const m={
+    id:id||'m'+Date.now(),
+    name:document.getElementById('mcName').value.trim(),
+    nickname:_nick,
+    color:document.getElementById('mcColor').value||MEMBER_COLORS[0],
+    email:_email,
+    phone:_phone,
+    role:_role,
+    fcmTokens:existing?.fcmTokens||[]
+  };
   if(!m.name){toast('⚠️ Name is required');return;}
+  if(_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_email)){toast('⚠️ Enter a valid email address');return;}
   if(id){const i=appMembers.findIndex(x=>x.id===id);if(i>-1)appMembers[i]=m;}
   else appMembers.push(m);
+  // Sync email + role into authorizedUsers so sign-in access is updated automatically
+  if(_email){
+    const users=appConfig.authorizedUsers||[];
+    const ui=users.findIndex(u=>u.email.toLowerCase()===_email);
+    if(ui>-1){users[ui].role=_role;users[ui].name=m.name;users[ui].updatedAt=new Date().toISOString();}
+    else users.push({email:_email,name:m.name,role:_role,addedAt:new Date().toISOString()});
+    appConfig.authorizedUsers=users;
+  }
   await saveSettings();
   applySettings();
   closeModal('adminMemberModal');
@@ -1894,10 +1938,37 @@ async function saveAdminMember(){
 
 async function delAdminMember(id){
   if(!confirm('Remove this member?')) return;
-  appMembers=appMembers.filter(m=>m.id!==id);
+  const m=appMembers.find(x=>x.id===id);
+  appMembers=appMembers.filter(x=>x.id!==id);
+  // Also remove from authorizedUsers if they had an email
+  if(m?.email){
+    appConfig.authorizedUsers=(appConfig.authorizedUsers||[]).filter(u=>u.email.toLowerCase()!==m.email.toLowerCase());
+  }
   await saveSettings();
   applySettings();
   toast('🗑 Member removed');
+}
+
+// Register this browser/device for the member currently open in the modal
+async function registerCurrentMemberDevice(){
+  const id=document.getElementById('memberCfgId').value;
+  if(!id){toast('⚠️ Save the member first');return;}
+  await registerDeviceForMember(id);
+  // Refresh button state
+  const m=appMembers.find(x=>x.id===id);
+  if(m) _updateMemberDeviceBtnState(m);
+  const count=(appMembers.find(x=>x.id===id)?.fcmTokens||[]).length;
+  document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet.';
+}
+
+async function unregisterCurrentMemberDevice(){
+  const id=document.getElementById('memberCfgId').value;
+  if(!id) return;
+  await unregisterDeviceForMember(id);
+  const m=appMembers.find(x=>x.id===id);
+  if(m) _updateMemberDeviceBtnState(m);
+  const count=(appMembers.find(x=>x.id===id)?.fcmTokens||[]).length;
+  document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet.';
 }
 
 // ─── NOTIFICATIONS / REMINDERS ─────────────────────────────────
@@ -1934,7 +2005,7 @@ async function registerDeviceForMember(memberId) {
     if (!existing.includes(token)) {
       appMembers[idx].fcmTokens = [...existing, token];
       await saveSettings();
-      renderAdminNotifications();
+      renderAdminMembers();
       toast('✅ Device registered for ' + appMembers[idx].name + '!');
     } else {
       toast('ℹ️ This device is already registered for ' + appMembers[idx].name);
@@ -1952,7 +2023,7 @@ async function unregisterDeviceForMember(memberId) {
     if (idx < 0) return;
     appMembers[idx].fcmTokens = (appMembers[idx].fcmTokens || []).filter(t => t !== token);
     await saveSettings();
-    renderAdminNotifications();
+    renderAdminMembers();
     toast('🗑 Device unregistered for ' + appMembers[idx].name);
   } catch(e) { toast('⚠️ Unregister failed: ' + e.message); }
 }
@@ -1972,25 +2043,6 @@ function renderAdminNotifications() {
         <input type="checkbox" value="${opt.days}" ${leadTimes.includes(opt.days) ? 'checked' : ''} onchange="saveReminderSettings()" />
         ${opt.label}
       </label>`).join('');
-  }
-  const devList = document.getElementById('cfgDeviceList');
-  if (devList) {
-    const allNames = appMembers.map(m=>m.name);
-    devList.innerHTML = appMembers.map(m => {
-      const tokenCount = (m.fcmTokens || []).length;
-      return `
-        <div class="device-reg-row">
-          <div class="member-swatch" style="background:${m.color};width:32px;height:32px;font-size:.7rem">${getInitials(m.name, allNames)}</div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:.85rem">${m.name}</div>
-            <div style="font-size:.75rem;color:var(--gray-500)">${tokenCount > 0 ? `📱 ${tokenCount} device${tokenCount>1?'s':''} registered` : '📵 No devices registered'}</div>
-          </div>
-          <div class="btn-actions">
-            <button class="btn btn-sm btn-primary" onclick="registerDeviceForMember('${m.id}')">📱 Register</button>
-            ${tokenCount > 0 ? `<button class="btn btn-sm btn-ghost" onclick="unregisterDeviceForMember('${m.id}')">Remove</button>` : ''}
-          </div>
-        </div>`;
-    }).join('');
   }
 }
 
