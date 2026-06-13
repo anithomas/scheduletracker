@@ -1925,7 +1925,8 @@ async function registerDeviceForMember(memberId) {
     if (!messaging) { toast('⚠️ Push notifications not supported in this browser'); return; }
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') { toast('⚠️ Notification permission denied'); return; }
-    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    const swReg = await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if (!token) { toast('⚠️ Could not get device token'); return; }
     const idx = appMembers.findIndex(m => m.id === memberId);
     if (idx < 0) return;
@@ -1944,7 +1945,8 @@ async function registerDeviceForMember(memberId) {
 async function unregisterDeviceForMember(memberId) {
   try {
     if (!messaging) return;
-    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    const swReg = await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if (!token) return;
     const idx = appMembers.findIndex(m => m.id === memberId);
     if (idx < 0) return;
