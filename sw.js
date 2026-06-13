@@ -17,6 +17,7 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const messagingInstance = firebase.messaging();
 
+// Handle background push notifications (app closed or backgrounded)
 messagingInstance.onBackgroundMessage(function(payload) {
   const notif = payload.notification || {};
   self.registration.showNotification(notif.title || 'Reminder', {
@@ -31,17 +32,48 @@ const CACHE = 'tracker-v2';
 const PRECACHE = ['/'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(PRECACHE))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      )
+    )
+  );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
+  // Skip non-GET and Firebase/Google API requests (let them go direct)
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.hostname.includes('firebase') || url.hostname.includes('googleapis') || url.hostname.includes('gstatic') || url.hostname.includes('firestore') || url.hostname.includes('google')) return;
-  e.respondWith(fetch(e.request).then(res => { if (res.ok && url.hostname === self.location.hostname) { caches.open(CACHE).then(c => c.put(e.request, res.clone())); } return res; }).catch(() => caches.match(e.request)));
+  if (
+    e.request.method !== 'GET' ||
+    url.hostname.includes('firebase') ||
+    url.hostname.includes('googleapis') ||
+    url.hostname.includes('gstatic') ||
+    url.hostname.includes('firestore') ||
+    url.hostname.includes('google')
+  ) {
+    return;
+  }
+
+  // Network-first for everything else — fall back to cache if offline
+  e.respondWith(
+    fetch(e.request)
+      .then(res => {
+        // Cache a fresh copy of the page
+        if (res.ok && url.hostname === self.location.hostname) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request))
+  );
 });
