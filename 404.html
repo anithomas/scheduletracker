@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — Thomas Family Tracker</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 45%, #7c3aed 80%, #db2777 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Decorative blobs */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(99,102,241,.35) 0%, transparent 70%);
+      top: -150px; right: -150px;
+      border-radius: 50%;
+    }
+    body::after {
+      content: '';
+      position: absolute;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(219,39,119,.25) 0%, transparent 70%);
+      bottom: -100px; left: -80px;
+      border-radius: 50%;
+    }
+
+    .card {
+      background: rgba(255,255,255,.08);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 28px;
+      padding: 56px 48px;
+      max-width: 540px;
+      width: 100%;
+      z-index: 1;
+      box-shadow: 0 32px 80px rgba(0,0,0,.35);
+    }
+
+    .emoji-stack {
+      font-size: 4.5rem;
+      margin-bottom: 8px;
+      animation: wobble 2.5s ease-in-out infinite;
+    }
+
+    @keyframes wobble {
+      0%, 100% { transform: rotate(-4deg); }
+      50%       { transform: rotate(4deg); }
+    }
+
+    .code {
+      font-size: 7rem;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+      letter-spacing: -4px;
+      margin: 8px 0 4px;
+      text-shadow: 0 4px 30px rgba(0,0,0,.4);
+    }
+
+    .code span { color: #fde68a; }
+
+    .headline {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: rgba(255,255,255,.95);
+      margin: 12px 0 8px;
+    }
+
+    .sub {
+      font-size: .95rem;
+      color: rgba(255,255,255,.65);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,.12);
+      margin: 24px 0;
+    }
+
+    .error-log {
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px;
+      padding: 16px 20px;
+      text-align: left;
+      font-size: .78rem;
+      color: rgba(255,255,255,.5);
+      font-family: 'Courier New', monospace;
+      margin-bottom: 28px;
+      line-height: 1.8;
+    }
+
+    .error-log .ok   { color: #4ade80; }
+    .error-log .warn { color: #fbbf24; }
+    .error-log .err  { color: #f87171; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      color: #1e293b;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: .95rem;
+      padding: 14px 28px;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.25);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    }
+
+    .footer-note {
+      margin-top: 28px;
+      font-size: .75rem;
+      color: rgba(255,255,255,.3);
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 40px 28px; }
+      .code { font-size: 5rem; }
+      .headline { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <div class="emoji-stack">🏠🚗📅</div>
+
+    <div class="code">4<span>0</span>4</div>
+
+    <div class="headline">Page not found — but we checked everywhere.</div>
+
+    <p class="sub">
+      We looked in the garage. We checked the HVAC closet. We even scrolled back through three years of calendar events.
+      Whatever you're looking for? It's not here.<br><br>
+      (It's probably just a typo. We're not judging. Much. 😄)
+    </p>
+
+    <div class="error-log">
+      <span class="ok">✔</span> Calendar loaded · all events present<br>
+      <span class="ok">✔</span> Auto records loaded · all vehicles accounted for<br>
+      <span class="ok">✔</span> Home schedules loaded · HVAC filter is fine<br>
+      <span class="warn">⚠</span> Searching for requested page…<br>
+      <span class="err">✘</span> Error 404 · Page not found — will be back with error code 🤷
+    </div>
+
+    <a class="btn" href="/">🏠 Take Me Home</a>
+
+    <div class="footer-note">
+      Thomas Family Tracker · tracker.logicmanse.ca · Private &amp; Secure
+    </div>
+
+  </div>
+</body>
+</html>
