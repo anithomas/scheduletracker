@@ -1,0 +1,13 @@
+{
+  "name": "reminder-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server-side scripts for Family Household Tracker — runs in GitHub Actions",
+  "main": "send-reminders.js",
+  "scripts": {
+    "send-reminders": "node send-reminders.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
