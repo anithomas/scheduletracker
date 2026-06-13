@@ -758,6 +758,7 @@
         <img class="avatar" id="userAvatar" src="" alt="" />
         <span class="user-name" id="userName"></span>
         <span class="role-badge" id="roleBadge" style="display:none"></span>
+        <button class="btn btn-sm" onclick="openMyProfile()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:4px 10px;font-size:.75rem;border-radius:8px;cursor:pointer" title="My notifications & device">🔔 My Profile</button>
         <button class="sign-out-btn" onclick="signOut()">Sign out</button>
       </div>
     </div>
@@ -1362,6 +1363,42 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('adminMemberModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveAdminMember()">💾 Save Member</button>
+    </div>
+  </div>
+</div>
+
+<!-- MY PROFILE MODAL (all roles) -->
+<div class="modal-overlay" id="myProfileModal">
+  <div class="modal admin-modal">
+    <div class="modal-title"><div class="title-icon cal">🔔</div> My Profile &amp; Notifications</div>
+    <div style="padding:12px 14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:14px">
+      <div style="font-size:.78rem;color:var(--gray-500);margin-bottom:2px">Signed in as</div>
+      <div id="mpName" style="font-weight:700;color:var(--gray-800);font-size:.95rem"></div>
+      <div id="mpEmail" style="font-size:.78rem;color:var(--gray-400)"></div>
+    </div>
+    <!-- Device section -->
+    <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:10px">
+      <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:8px">📱 My Registered Devices</div>
+      <div id="mpDeviceList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
+      <button class="btn btn-sm btn-primary" id="mpRegisterBtn" onclick="registerMyDevice()">📱 Register This Device</button>
+    </div>
+    <!-- Notification subscriptions -->
+    <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:14px">
+      <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:4px">🔔 Notify me for these event types</div>
+      <div style="font-size:.76rem;color:var(--gray-400);margin-bottom:10px">Get push notifications even when you're not assigned to the event.</div>
+      <div id="mpNotifyTypesWrap" style="display:flex;flex-wrap:wrap;gap:8px">
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" id="mpNotifyAll" style="width:auto" onchange="toggleMpNotifyAll(this)" /> All events</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="medical" style="width:auto" /> 🏥 Medical</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="vehicle" style="width:auto" /> 🚗 Vehicle</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="school" style="width:auto" /> 🎓 School</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="home" style="width:auto" /> 🏡 Home</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="general" style="width:auto" /> 📋 General</label>
+        <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;font-weight:500;color:var(--gray-700)"><input type="checkbox" class="mp-notify-type" value="other" style="width:auto" /> 📌 Other</label>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('myProfileModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMyProfile()">💾 Save Preferences</button>
     </div>
   </div>
 </div>
@@ -2020,6 +2057,106 @@ function toggleNotifyAll(cb){
     el.disabled=cb.checked;
     if(cb.checked) el.checked=false;
   });
+}
+
+// ── My Profile modal (accessible to all roles) ──────────────────────────────
+function _myProfileMember(){
+  const email=(auth.currentUser?.email||'').toLowerCase();
+  return appMembers.find(m=>m.email&&m.email.toLowerCase()===email);
+}
+
+function openMyProfile(){
+  const user=auth.currentUser;
+  const m=_myProfileMember();
+  document.getElementById('mpName').textContent=user?.displayName||user?.email||'Unknown';
+  document.getElementById('mpEmail').textContent=user?.email||'';
+  _renderMyProfileDevices(m);
+  // Populate notify checkboxes
+  const nt=m?.notifyTypes||[];
+  const isAll=nt.includes('all');
+  const allEl=document.getElementById('mpNotifyAll');
+  if(allEl) allEl.checked=isAll;
+  document.querySelectorAll('.mp-notify-type').forEach(cb=>{
+    cb.checked=!isAll&&nt.includes(cb.value);
+    cb.disabled=isAll;
+  });
+  openModal('myProfileModal');
+}
+
+function _renderMyProfileDevices(m){
+  const tokens=(m?.fcmTokens)||[];
+  const dlEl=document.getElementById('mpDeviceList');
+  if(!dlEl) return;
+  if(!tokens.length){
+    dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
+  } else {
+    dlEl.innerHTML=tokens.map((t,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
+        <span>📱 Device ${i+1}</span>
+        <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeMyDeviceToken('${t}',this)">🗑 Remove</button>
+      </div>`).join('');
+  }
+  // Show/hide register button based on whether this device is already registered
+  if(messaging){
+    navigator.serviceWorker.ready.then(sw=>messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw}))
+      .then(token=>{
+        const regBtn=document.getElementById('mpRegisterBtn');
+        if(regBtn) regBtn.style.display=token&&tokens.includes(token)?'none':'inline-flex';
+      }).catch(()=>{});
+  }
+}
+
+function toggleMpNotifyAll(cb){
+  document.querySelectorAll('.mp-notify-type').forEach(el=>{
+    el.disabled=cb.checked;
+    if(cb.checked) el.checked=false;
+  });
+}
+
+async function registerMyDevice(){
+  const m=_myProfileMember();
+  if(!m){toast('⚠️ Your profile is not set up in Admin yet — ask your admin to add your account.');return;}
+  if(!messaging){toast('⚠️ Push notifications not available');return;}
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){toast('⚠️ Notifications blocked — please allow in browser settings');return;}
+    const sw=await navigator.serviceWorker.ready;
+    const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw});
+    const idx=appMembers.findIndex(x=>x.id===m.id);
+    const existing=appMembers[idx].fcmTokens||[];
+    if(existing.includes(token)){toast('✅ This device is already registered');return;}
+    appMembers[idx].fcmTokens=[...existing,token];
+    await saveSettings();
+    _renderMyProfileDevices(appMembers[idx]);
+    toast('✅ Device registered for push notifications!');
+  }catch(e){toast('⚠️ Registration failed: '+e.message);}
+}
+
+async function removeMyDeviceToken(token, btn){
+  const m=_myProfileMember();
+  if(!m) return;
+  const idx=appMembers.findIndex(x=>x.id===m.id);
+  if(idx<0) return;
+  try{
+    if(btn) btn.disabled=true;
+    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>t!==token);
+    await saveSettings();
+    _renderMyProfileDevices(appMembers[idx]);
+    toast('🗑 Device removed');
+  }catch(e){toast('⚠️ Failed: '+e.message);if(btn) btn.disabled=false;}
+}
+
+async function saveMyProfile(){
+  const m=_myProfileMember();
+  if(!m){toast('⚠️ Profile not found');return;}
+  const idx=appMembers.findIndex(x=>x.id===m.id);
+  if(idx<0) return;
+  const isAll=document.getElementById('mpNotifyAll')?.checked;
+  const notifyTypes=isAll?['all']:[...document.querySelectorAll('.mp-notify-type:checked')].map(c=>c.value);
+  appMembers[idx].notifyTypes=notifyTypes;
+  await saveSettings();
+  toast('✅ Notification preferences saved');
+  closeModal('myProfileModal');
 }
 
 function selectMemberColor(c,btn){
