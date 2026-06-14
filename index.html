@@ -1981,17 +1981,7 @@ function openAdminMemberModal(id){
     // Render per-device rows
     const tokens=m.fcmTokens||[];
     const dlEl=document.getElementById('mcDeviceList');
-    if(dlEl){
-      if(!tokens.length){
-        dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
-      } else {
-        dlEl.innerHTML=tokens.map((t,i)=>`
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
-            <span>📱 Device ${i+1}</span>
-            <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeSpecificDeviceToken('${m.id}','${t}',this)">🗑 Remove</button>
-          </div>`).join('');
-      }
-    }
+    if(dlEl) dlEl.innerHTML=_deviceListHTML(tokens,'_removeAdminDeviceToken');
     // Register btn — show always; async check will hide if current device already registered
     const regBtn=document.getElementById('mcRegisterBtn');
     if(regBtn) regBtn.style.display='inline-flex';
@@ -2016,11 +2006,17 @@ async function _updateMemberDeviceBtnState(m){
     if(!messaging) return;
     const swReg=await navigator.serviceWorker.ready;
     const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
-    const isReg=token&&(m.fcmTokens||[]).includes(token);
+    const isReg=token&&(m.fcmTokens||[]).some(d=>(d.token||d)===token);
     const regBtn=document.getElementById('mcRegisterBtn');
     // Hide "Register" button if this device is already registered
     if(regBtn) regBtn.style.display=isReg?'none':'inline-flex';
   }catch(e){}
+}
+
+// Thin wrapper used by admin modal device list (reads memberId from hidden input)
+function _removeAdminDeviceToken(token, btn){
+  const memberId=document.getElementById('memberCfgId').value;
+  removeSpecificDeviceToken(memberId, token, btn);
 }
 
 // Remove one specific FCM token from a member's device list
@@ -2029,23 +2025,11 @@ async function removeSpecificDeviceToken(memberId, token, btn){
   if(idx<0){toast('Member not found');return;}
   try{
     if(btn) btn.disabled=true;
-    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>t!==token);
+    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>(t.token||t)!==token);
     await saveSettings();
-    // Re-render device list in place
     const m=appMembers[idx];
-    const tokens=m.fcmTokens||[];
     const dlEl=document.getElementById('mcDeviceList');
-    if(dlEl){
-      if(!tokens.length){
-        dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
-      } else {
-        dlEl.innerHTML=tokens.map((t,i)=>`
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
-            <span>📱 Device ${i+1}</span>
-            <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeSpecificDeviceToken('${m.id}','${t}',this)">🗑 Remove</button>
-          </div>`).join('');
-      }
-    }
+    if(dlEl) dlEl.innerHTML=_deviceListHTML(m.fcmTokens||[],'_removeAdminDeviceToken');
     _updateMemberDeviceBtnState(m);
     renderAdminMembers();
     toast('🗑 Device removed');
@@ -2087,21 +2071,13 @@ function _renderMyProfileDevices(m){
   const tokens=(m?.fcmTokens)||[];
   const dlEl=document.getElementById('mpDeviceList');
   if(!dlEl) return;
-  if(!tokens.length){
-    dlEl.innerHTML='<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
-  } else {
-    dlEl.innerHTML=tokens.map((t,i)=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;font-size:.78rem;color:var(--gray-700)">
-        <span>📱 Device ${i+1}</span>
-        <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red)" onclick="removeMyDeviceToken('${t}',this)">🗑 Remove</button>
-      </div>`).join('');
-  }
+  dlEl.innerHTML=_deviceListHTML(tokens,'removeMyDeviceToken');
   // Show/hide register button based on whether this device is already registered
   if(messaging){
     navigator.serviceWorker.ready.then(sw=>messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw}))
       .then(token=>{
         const regBtn=document.getElementById('mpRegisterBtn');
-        if(regBtn) regBtn.style.display=token&&tokens.includes(token)?'none':'inline-flex';
+        if(regBtn) regBtn.style.display=token&&tokens.some(d=>(d.token||d)===token)?'none':'inline-flex';
       }).catch(()=>{});
   }
 }
@@ -2124,8 +2100,9 @@ async function registerMyDevice(){
     const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw});
     const idx=appMembers.findIndex(x=>x.id===m.id);
     const existing=appMembers[idx].fcmTokens||[];
-    if(existing.includes(token)){toast('✅ This device is already registered');return;}
-    appMembers[idx].fcmTokens=[...existing,token];
+    if(existing.some(d=>(d.token||d)===token)){toast('✅ This device is already registered');return;}
+    const info=getDeviceInfo();
+    appMembers[idx].fcmTokens=[...existing,{token,browser:info.browser,os:info.os,icon:info.icon,registeredAt:new Date().toISOString()}];
     await saveSettings();
     _renderMyProfileDevices(appMembers[idx]);
     toast('✅ Device registered for push notifications!');
@@ -2139,7 +2116,7 @@ async function removeMyDeviceToken(token, btn){
   if(idx<0) return;
   try{
     if(btn) btn.disabled=true;
-    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>t!==token);
+    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>(t.token||t)!==token);
     await saveSettings();
     _renderMyProfileDevices(appMembers[idx]);
     toast('🗑 Device removed');
@@ -2257,6 +2234,51 @@ const LEAD_TIME_OPTIONS = [
 ];
 let messaging = null;
 
+// Detect browser/OS details for device registration labels
+function getDeviceInfo() {
+  const ua = navigator.userAgent;
+  let browser = 'Browser';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera\//.test(ua)) browser = 'Opera';
+  else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+  let os = 'Unknown';
+  if (/iPhone/.test(ua)) os = 'iPhone';
+  else if (/iPad/.test(ua)) os = 'iPad';
+  else if (/Android/.test(ua)) {
+    const m = ua.match(/Android [0-9.]+;?\s*([^;)]+)/i);
+    os = m ? m[1].trim() : 'Android';
+    if (os.length > 30) os = 'Android';
+  }
+  else if (/Windows NT 10/.test(ua)) os = 'Windows 10/11';
+  else if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Macintosh|Mac OS X/.test(ua)) os = 'macOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  const icon = /iPhone|iPad|Android|Mobile/.test(ua) ? '📱' : '💻';
+  return { browser, os, icon };
+}
+
+// Render device list HTML rows (shared by admin modal + my profile modal)
+function _deviceListHTML(tokens, removeCallbackFn) {
+  if (!tokens || !tokens.length) return '<div style="font-size:.78rem;color:var(--gray-400)">No devices registered yet.</div>';
+  return tokens.map((d, i) => {
+    const tok = typeof d === 'object' ? d.token : d;
+    const icon = (typeof d === 'object' && d.icon) ? d.icon : '📱';
+    const label = (typeof d === 'object') ? `${d.browser || 'Browser'} on ${d.os || 'Unknown'}` : `Device ${i+1}`;
+    const dateStr = (typeof d === 'object' && d.registeredAt)
+      ? new Date(d.registeredAt).toLocaleDateString('en-CA', {month:'short', day:'numeric', year:'numeric'})
+      : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid var(--gray-200);border-radius:8px;gap:8px">
+      <div>
+        <div style="font-size:.8rem;font-weight:600;color:var(--gray-700)">${icon} ${label}</div>
+        ${dateStr ? `<div style="font-size:.72rem;color:var(--gray-400);margin-top:2px">Registered ${dateStr}</div>` : ''}
+      </div>
+      <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:.72rem;color:var(--red);flex-shrink:0" data-token="${tok}" onclick="${removeCallbackFn}(this.dataset.token,this)">🗑 Remove</button>
+    </div>`;
+  }).join('');
+}
+
 function initFCM() {
   try {
     if (!firebase.messaging.isSupported()) return;
@@ -2279,8 +2301,9 @@ async function registerDeviceForMember(memberId) {
     const idx = appMembers.findIndex(m => m.id === memberId);
     if (idx < 0) return;
     const existing = appMembers[idx].fcmTokens || [];
-    if (!existing.includes(token)) {
-      appMembers[idx].fcmTokens = [...existing, token];
+    if (!existing.some(d => (d.token||d) === token)) {
+      const info = getDeviceInfo();
+      appMembers[idx].fcmTokens = [...existing, {token, browser:info.browser, os:info.os, icon:info.icon, registeredAt:new Date().toISOString()}];
       await saveSettings();
       renderAdminMembers();
       toast('✅ Device registered for ' + appMembers[idx].name + '!');
@@ -2298,7 +2321,7 @@ async function unregisterDeviceForMember(memberId) {
     if (!token) return;
     const idx = appMembers.findIndex(m => m.id === memberId);
     if (idx < 0) return;
-    appMembers[idx].fcmTokens = (appMembers[idx].fcmTokens || []).filter(t => t !== token);
+    appMembers[idx].fcmTokens = (appMembers[idx].fcmTokens || []).filter(t => (t.token||t) !== token);
     await saveSettings();
     renderAdminMembers();
     toast('🗑 Device unregistered for ' + appMembers[idx].name);

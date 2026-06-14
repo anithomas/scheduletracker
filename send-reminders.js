@@ -66,13 +66,16 @@ async function main() {
   console.log(`  Lead times: ${leadTimes.join(', ')} days | Members: ${members.length}`);
 
   // Build a map of member name → FCM tokens (for per-member targeting)
+  // fcmTokens may be plain strings (legacy) or {token, browser, os, ...} objects
+  const extractTokens = arr => (arr || []).map(d => (typeof d === 'object' ? d.token : d)).filter(Boolean);
   const memberTokens = {};
   members.forEach(m => {
-    if (m.fcmTokens && m.fcmTokens.length) memberTokens[m.name] = m.fcmTokens;
+    const toks = extractTokens(m.fcmTokens);
+    if (toks.length) memberTokens[m.name] = toks;
   });
 
   // Collect all tokens across all members for "all members" notifications
-  const allTokens = members.flatMap(m => m.fcmTokens || []).filter(Boolean);
+  const allTokens = members.flatMap(m => extractTokens(m.fcmTokens));
   if (!allTokens.length) { console.log('ℹ️  No device tokens registered — nothing to send'); return; }
 
   // 2. Fetch collections in parallel
