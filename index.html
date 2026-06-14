@@ -275,6 +275,9 @@
     .cal-day{min-height:74px;border:1.5px solid var(--gray-100);border-radius:9px;padding:5px 6px;cursor:pointer;transition:all .15s;background:#fff;position:relative;}
     .cal-day:hover{border-color:var(--blue);background:#f8faff;}
     .cal-day.other-month{opacity:.3;background:var(--gray-50);cursor:default;}
+    .cal-day.past-day{background:var(--gray-50);}
+    .cal-day.past-day .day-num{color:var(--gray-300);}
+    .cal-event.past-event{opacity:.4;filter:grayscale(.7);}
     .cal-day.today{border-color:var(--blue);background:linear-gradient(135deg,#eff6ff,#f8faff);}
     .day-num{font-size:.8rem;font-weight:700;color:var(--gray-600);width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;}
     .cal-day.today .day-num{background:var(--blue);color:#fff;}
@@ -3257,6 +3260,7 @@ function renderCalendar(){
   for(let d=1;d<=last.getDate();d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=ds===todayStr;
+    const isPast=ds<todayStr;
     const dayEvts=eventsOnDay(ds);
     const eMembers=e=>e.members&&e.members.length?e.members:(e.member?[e.member]:[]);
     const mClass=e=>'m-'+(eMembers(e)[0]||'other').toLowerCase().replace(/\s+/g,'');
@@ -3270,7 +3274,7 @@ function renderCalendar(){
       return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${e.title}${isRange(e)?' 📅':''}${mems.length?' · '+mems.join(', '):''}</span></div>`;
     }).join('');
     const inRange=dayEvts.some(e=>isRange(e)&&ds>e.date&&ds<=(e.endDate||e.date));
-    html+=`<div class="cal-day${isToday?' today':''}${inRange?' in-range':''}" onclick="openCalDay('${ds}')">
+    html+=`<div class="cal-day${isToday?' today':''}${isPast&&!isToday?' past-day':''}${inRange?' in-range':''}" onclick="openCalDay('${ds}')">
       <span class="day-num">${d}</span>
       ${shown.map(e=>{
         const isStart=ds===e.date;
@@ -3280,7 +3284,8 @@ function renderCalendar(){
         const mems=eMembers(e);
         // For multi-member: show a gradient-like bar using first member color, with tiny dots for extras
         const extraDots=mems.slice(1).map(m=>`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${memberColor(m)};margin-left:2px;vertical-align:middle;border:1px solid rgba(255,255,255,.7)"></span>`).join('');
-        return `<div class="cal-event ${mClass(e)} ${rangeClass}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}${extraDots}</div>`;
+        const isEventPast=(e.endDate||e.date)<todayStr;
+        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}${extraDots}</div>`;
       }).join('')}
       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
