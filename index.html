@@ -477,24 +477,31 @@
       #toast{bottom:16px;}
 
       /* Modals — bottom sheet on mobile */
-      .modal-overlay{padding:0;align-items:flex-end;z-index:300;}
+      .modal-overlay{
+        padding:0;align-items:flex-end;z-index:300;
+        overflow:hidden; /* clips modal so it CANNOT extend above viewport */
+      }
       .modal{
         border-radius:20px 20px 0 0;
-        padding:8px 18px calc(28px + env(safe-area-inset-bottom));
+        padding:0 18px calc(28px + env(safe-area-inset-bottom));
         width:100%;max-width:100%;
-        max-height:90vh;
-        max-height:90dvh; /* respects keyboard & browser chrome */
+        max-height:88vh;
+        max-height:88dvh; /* dynamic — shrinks when keyboard appears */
         overflow-y:auto;
         overscroll-behavior:contain;
         -webkit-overflow-scrolling:touch;
+        animation:sheetUp .32s cubic-bezier(.32,.72,0,1); /* slides from fully off-screen */
       }
-      /* Drag handle */
+      @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+      /* Drag handle pill */
       .modal::before{
-        content:'';display:block;width:40px;height:4px;
-        background:var(--gray-200);border-radius:2px;
-        margin:0 auto 16px;
+        content:'';display:block;
+        width:36px;height:4px;
+        background:var(--gray-300);border-radius:2px;
+        margin:12px auto 14px;flex-shrink:0;
       }
-      body.modal-open{overflow:hidden;touch-action:none;}
+      /* Scroll lock — position:fixed trick works on iOS + Android without viewport jump */
+      body.modal-open{position:fixed;width:100%;overflow-y:scroll;}
       .form-row{grid-template-columns:1fr;}
 
       /* Stats */
@@ -3802,18 +3809,24 @@ function renderReportCal(){
 }
 
 // ─── MODAL ────────────────────────────────────────
+let _modalScrollY = 0;
 function openModal(id){
-  // Lock body scroll so fixed overlay covers the viewport reliably on mobile
+  // Save scroll position then lock body — preserves position without viewport jump
+  _modalScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = `-${_modalScrollY}px`;
   document.body.classList.add('modal-open');
   const overlay = document.getElementById(id);
   overlay.classList.add('open');
-  // Scroll modal content to top (important when re-opening an edited form)
+  // Scroll modal content to top
   const m = overlay.querySelector('.modal');
   if(m) m.scrollTop = 0;
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
+  // Restore body scroll position
   document.body.classList.remove('modal-open');
+  document.body.style.top = '';
+  window.scrollTo(0, _modalScrollY);
   const editMap={autoModal:'autoEditId',homeModal:'homeEditId',calModal:'calEditId',adminVehicleModal:'vehicleCfgId',adminMemberModal:'memberCfgId'};
   if(editMap[id]){
     document.getElementById(editMap[id]).value='';
