@@ -476,9 +476,25 @@
       /* Toast */
       #toast{bottom:16px;}
 
-      /* Modals slide up from bottom */
+      /* Modals — bottom sheet on mobile */
       .modal-overlay{padding:0;align-items:flex-end;z-index:300;}
-      .modal{border-radius:20px 20px 0 0;padding:24px 18px 32px;width:100%;max-width:100%;max-height:92vh;}
+      .modal{
+        border-radius:20px 20px 0 0;
+        padding:8px 18px calc(28px + env(safe-area-inset-bottom));
+        width:100%;max-width:100%;
+        max-height:90vh;
+        max-height:90dvh; /* respects keyboard & browser chrome */
+        overflow-y:auto;
+        overscroll-behavior:contain;
+        -webkit-overflow-scrolling:touch;
+      }
+      /* Drag handle */
+      .modal::before{
+        content:'';display:block;width:40px;height:4px;
+        background:var(--gray-200);border-radius:2px;
+        margin:0 auto 16px;
+      }
+      body.modal-open{overflow:hidden;touch-action:none;}
       .form-row{grid-template-columns:1fr;}
 
       /* Stats */
@@ -1594,6 +1610,13 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const auth    = firebase.auth();
 const db      = firebase.firestore();
 const storage = firebase.storage();
+
+// Tap the dark overlay backdrop to close any modal (mobile UX)
+document.addEventListener('click', e => {
+  if(e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')){
+    closeModal(e.target.id);
+  }
+}, {passive:true});
 
 let autoRecords=[], homeItems=[], events=[];
 const NOW   = new Date();
@@ -3779,9 +3802,18 @@ function renderReportCal(){
 }
 
 // ─── MODAL ────────────────────────────────────────
-function openModal(id){ document.getElementById(id).classList.add('open'); }
+function openModal(id){
+  // Lock body scroll so fixed overlay covers the viewport reliably on mobile
+  document.body.classList.add('modal-open');
+  const overlay = document.getElementById(id);
+  overlay.classList.add('open');
+  // Scroll modal content to top (important when re-opening an edited form)
+  const m = overlay.querySelector('.modal');
+  if(m) m.scrollTop = 0;
+}
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
+  document.body.classList.remove('modal-open');
   const editMap={autoModal:'autoEditId',homeModal:'homeEditId',calModal:'calEditId',adminVehicleModal:'vehicleCfgId',adminMemberModal:'memberCfgId'};
   if(editMap[id]){
     document.getElementById(editMap[id]).value='';
