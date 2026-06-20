@@ -4,7 +4,7 @@ on:
   schedule:
     # 8:00 AM EST (UTC-5) = 13:00 UTC — runs every day
     - cron: '0 13 * * *'
-  workflow_dispatch:   # Allow manual trigger from GitHub Actions UI (for testing)
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI (for testing)
 
 jobs:
   send-reminders:
@@ -17,6 +17,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Install dependencies
         run: npm install
         working-directory: scripts
@@ -27,3 +28,5 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: home-and-auto-tracker
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
