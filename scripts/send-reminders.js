@@ -1,22 +1,37 @@
 /**
  * send-reminders.js
- * Family Household Tracker — Daily push reminder script
+ * Family Household Tracker — Daily reminder script
  * Runs via GitHub Actions on a daily schedule (see .github/workflows/reminders.yml)
  *
  * What it does:
  *   1. Reads reminderSettings + members (with fcmTokens) from Firestore settings/config
  *   2. Reads autoRecords, homeItems, events collections
  *   3. Finds items within the configured lead-time windows
- *   4. Sends FCM V1 push notifications to registered device tokens
+ *   4. Sends FCM push notifications to registered devices
+ *   5. Sends SMS via free carrier email-to-SMS gateways (Bell / Rogers)
  *
  * Required environment variables (set as GitHub Actions secrets — NEVER in code):
  *   FIREBASE_SERVICE_ACCOUNT  — full JSON of the Firebase service account key
  *   FIREBASE_PROJECT_ID       — Firebase project ID (e.g. home-and-auto-tracker)
+ *   GMAIL_USER                — Google account email used to send SMS gateway emails
+ *   GMAIL_APP_PASSWORD        — Google App Password for the above account
  */
 
 const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
 
-// ─── Init ──────────────────────────────────────────────────────
+// ─── SMS Gateway Map ────────────────────────────────────────────
+// Free carrier email-to-SMS gateways — messages arrive as real SMS texts
+// Bell: @txt.bell.ca | Rogers: @pcs.rogers.com
+const SMS_GATEWAYS = {
+  'ANI P Thomas':  '4169034893@txt.bell.ca',
+  'ANJU THOMAS':   '4169026311@pcs.rogers.com',
+  'Kevin Thomas':  '6475123657@txt.bell.ca',
+  'Rachel Thomas': '4375539312@txt.bell.ca',
+};
+const ALL_SMS_ADDRESSES = Object.values(SMS_GATEWAYS);
+
+// ─── Firebase Init ─────────────────────────────────────────────
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 const projectId = process.env.FIREBASE_PROJECT_ID;
 
@@ -32,6 +47,43 @@ admin.initializeApp({
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+
+// ─── Nodemailer / SMS Setup ────────────────────────────────────
+function createTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) {
+    console.log('ℹ️  GMAIL_USER / GMAIL_APP_PASSWORD not set — SMS disabled');
+    return null;
+  }
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user, pass },
+  });
+}
+
+async function sendSMS(transporter, toAddresses, subject, text) {
+  if (!transporter || !toAddresses.length) return { sent: 0, failed: 0 };
+  let sent = 0, failed = 0;
+  for (const to of toAddresses) {
+    try {
+      await transporter.sendMail({
+        from: `"Family Tracker" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        text,
+      });
+      console.log(`  📱 SMS ✅ → ${to}`);
+      sent++;
+    } catch (err) {
+      console.warn(`  📱 SMS ⚠️  → ${to}: ${err.message}`);
+      failed++;
+    }
+  }
+  return { sent, failed };
+}
 
 // ─── Helpers ───────────────────────────────────────────────────
 function daysUntil(dateStr) {
@@ -65,15 +117,17 @@ async function main() {
 
   console.log(`  Lead times: ${leadTimes.join(', ')} days | Members: ${members.length}`);
 
-  // Build a map of member name → FCM tokens (for per-member targeting)
+  // FCM token maps
+  const extractTokens = arr => (arr || []).map(d => (typeof d === 'object' ? d.token : d)).filter(Boolean);
   const memberTokens = {};
   members.forEach(m => {
-    if (m.fcmTokens && m.fcmTokens.length) memberTokens[m.name] = m.fcmTokens;
+    const toks = extractTokens(m.fcmTokens);
+    if (toks.length) memberTokens[m.name] = toks;
   });
+  const allTokens = members.flatMap(m => extractTokens(m.fcmTokens));
 
-  // Collect all tokens across all members for "all members" notifications
-  const allTokens = members.flatMap(m => m.fcmTokens || []).filter(Boolean);
-  if (!allTokens.length) { console.log('ℹ️  No device tokens registered — nothing to send'); return; }
+  // SMS transporter
+  const transporter = createTransporter();
 
   // 2. Fetch collections in parallel
   const [autoSnap, homeSnap, eventsSnap] = await Promise.all([
@@ -83,8 +137,8 @@ async function main() {
   ]);
 
   const autoRecords = autoSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const homeItems = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const events = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const homeItems   = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const events      = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
   // 3. Build reminder list
   const reminders = [];
@@ -93,11 +147,47 @@ async function main() {
     const d = daysUntil(e.date);
     if (d === null || d < 0 || d > maxDays) return;
     if (!leadTimes.some(lt => d <= lt)) return;
+
+    const evType = (e.type || '').toLowerCase();
+    const eventMemberNames = new Set(
+      e.members && e.members.length ? e.members : (e.member ? [e.member] : [])
+    );
+
+    members.forEach(m => {
+      const nt = m.notifyTypes || [];
+      if (nt.includes('all') || (evType && nt.includes(evType))) eventMemberNames.add(m.name);
+    });
+    if (e.notifyMembers && e.notifyMembers.length) {
+      e.notifyMembers.forEach(n => eventMemberNames.add(n));
+    }
+
+    // FCM tokens
+    let tokens = [];
+    if (eventMemberNames.size === 0 || (e.reminderRecipients === 'all' && !e.notifyMembers)) {
+      tokens = allTokens;
+    } else {
+      eventMemberNames.forEach(name => tokens.push(...(memberTokens[name] || [])));
+      if (!tokens.length) tokens = allTokens;
+    }
+
+    // SMS addresses — target specific members or all
+    let smsAddresses = [];
+    if (eventMemberNames.size === 0 || (e.reminderRecipients === 'all' && !e.notifyMembers)) {
+      smsAddresses = ALL_SMS_ADDRESSES;
+    } else {
+      eventMemberNames.forEach(name => {
+        if (SMS_GATEWAYS[name]) smsAddresses.push(SMS_GATEWAYS[name]);
+      });
+      if (!smsAddresses.length) smsAddresses = ALL_SMS_ADDRESSES;
+    }
+
+    const memberLabel = [...eventMemberNames].join(', ');
     reminders.push({
       icon: '📅',
       title: e.title,
-      body: `${dayLabel(d)}${e.member ? ' · ' + e.member : ''}`,
-      recipients: e.reminderRecipients || 'all',
+      body: `${dayLabel(d)}${memberLabel ? ' · ' + memberLabel : ''}`,
+      tokens,
+      smsAddresses,
     });
   });
 
@@ -110,7 +200,8 @@ async function main() {
       icon: '🚗',
       title: `${r.service}${vehicle ? ' — ' + vehicle : ''}`,
       body: `Due: ${dayLabel(d)}`,
-      recipients: 'all',
+      tokens: allTokens,
+      smsAddresses: ALL_SMS_ADDRESSES,
     });
   });
 
@@ -122,7 +213,8 @@ async function main() {
       icon: '🏡',
       title: h.item || h.description || 'Home maintenance',
       body: `Due: ${dayLabel(d)}`,
-      recipients: 'all',
+      tokens: allTokens,
+      smsAddresses: ALL_SMS_ADDRESSES,
     });
   });
 
@@ -133,52 +225,43 @@ async function main() {
 
   console.log(`  📋 ${reminders.length} reminder(s) to send`);
 
-  // 4. Send FCM messages
-  let sent = 0, failed = 0;
+  // 4. Send FCM push + SMS for each reminder
+  let fcmSent = 0, fcmFailed = 0, smsSent = 0, smsFailed = 0;
+
   for (const reminder of reminders) {
-    // Determine target tokens
-    let tokens = [];
-    if (reminder.recipients === 'all') {
-      tokens = allTokens;
-    } else if (memberTokens[reminder.recipients]) {
-      tokens = memberTokens[reminder.recipients];
-    } else {
-      tokens = allTokens; // fallback: send to all if specific member not found
-    }
+    const subject = `${reminder.icon} ${reminder.title}`;
+    const text    = `${subject}\n${reminder.body}\n\n— Thomas Family Tracker`;
 
-    if (!tokens.length) continue;
-
-    const message = {
-      notification: {
-        title: `${reminder.icon} ${reminder.title}`,
-        body: reminder.body,
-      },
-      webpush: {
-        notification: {
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-        },
-      },
-      tokens: [...new Set(tokens)], // deduplicate
-    };
-
-    try {
-      const response = await messaging.sendEachForMulticast(message);
-      sent += response.successCount;
-      failed += response.failureCount;
-      if (response.failureCount > 0) {
-        response.responses.forEach((r, i) => {
-          if (!r.success) console.warn(`  ⚠️  Token ${i} failed: ${r.error?.message}`);
+    // FCM push (skip if no tokens)
+    const tokens = [...new Set(reminder.tokens || [])];
+    if (tokens.length) {
+      try {
+        const resp = await messaging.sendEachForMulticast({
+          notification: { title: subject, body: reminder.body },
+          webpush: { notification: { icon: '/icon-192.png', badge: '/icon-192.png' } },
+          tokens,
         });
+        fcmSent   += resp.successCount;
+        fcmFailed += resp.failureCount;
+        if (resp.failureCount > 0) {
+          resp.responses.forEach((r, i) => {
+            if (!r.success) console.warn(`  ⚠️  FCM token ${i} failed: ${r.error?.message}`);
+          });
+        }
+        console.log(`  🔔 FCM "${reminder.title}" → ${resp.successCount}/${tokens.length} delivered`);
+      } catch (err) {
+        console.error(`  ❌ FCM failed "${reminder.title}":`, err.message);
+        fcmFailed++;
       }
-      console.log(`  ✅ "${reminder.title}" → ${response.successCount}/${tokens.length} delivered`);
-    } catch (err) {
-      console.error(`  ❌ Failed to send "${reminder.title}":`, err.message);
-      failed++;
     }
+
+    // SMS via email-to-carrier gateway
+    const smsResult = await sendSMS(transporter, reminder.smsAddresses, subject, text);
+    smsSent   += smsResult.sent;
+    smsFailed += smsResult.failed;
   }
 
-  console.log(`\n✅ Done — ${sent} delivered, ${failed} failed`);
+  console.log(`\n✅ Done — FCM: ${fcmSent} delivered / ${fcmFailed} failed | SMS: ${smsSent} sent / ${smsFailed} failed`);
 }
 
 main().catch(err => {
