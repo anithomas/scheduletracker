@@ -504,6 +504,29 @@
       body.modal-open{position:fixed;width:100%;overflow-y:scroll;}
       .form-row{grid-template-columns:1fr;}
 
+      /* Floating Action Button */
+      #fab{
+        display:flex !important;
+        position:fixed;
+        bottom:calc(24px + env(safe-area-inset-bottom));
+        right:20px;
+        width:58px;height:58px;
+        border-radius:50%;
+        background:var(--blue-dark);
+        color:#fff;
+        font-size:1.7rem;line-height:1;
+        border:none;
+        box-shadow:0 4px 16px rgba(29,78,216,.45),0 1px 4px rgba(0,0,0,.2);
+        cursor:pointer;
+        z-index:150;
+        align-items:center;justify-content:center;
+        transition:transform .15s,box-shadow .15s;
+        touch-action:manipulation;
+      }
+      #fab:active{transform:scale(.92);box-shadow:0 2px 8px rgba(29,78,216,.3);}
+      #fab.fab-hidden{display:none !important;}
+      .role-viewer #fab,.role-denied #fab{display:none !important;}
+
       /* Stats */
       .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
       .stat-card{padding:13px 14px;gap:10px;}
@@ -1428,6 +1451,9 @@
     </div>
   </div>
 </div>
+
+<!-- FLOATING ACTION BUTTON (mobile only) -->
+<button id="fab" class="rbac-add" style="display:none" aria-label="Add" onclick="fabAction()">＋</button>
 
 <!-- TOAST -->
 <div id="toast"></div>
@@ -2840,6 +2866,14 @@ function memberColor(member) {
 }
 
 // ─── SECTION NAV ──────────────────────────────────────────────
+// FAB config per section (mobile only)
+const FAB_CONFIG = {
+  calendar: { label:'📅', title:'Add Event',   modal:'calModal'  },
+  auto:     { label:'🚗', title:'Add Record',  modal:'autoModal' },
+  home:     { label:'🏡', title:'Add Item',    modal:'homeModal' },
+};
+let _currentSection = 'calendar';
+
 function showSection(id, btn) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('nav button, .mobile-bottom-nav button').forEach(b=>b.classList.remove('active'));
@@ -2847,6 +2881,23 @@ function showSection(id, btn) {
   document.querySelectorAll(`[onclick*="'${id}'"]`).forEach(b=>b.classList.add('active'));
   if(id==='reports') renderSummary();
   window.scrollTo(0, 0);
+  _currentSection = id;
+  // Show/hide FAB based on section
+  const fab = document.getElementById('fab');
+  if(fab){
+    const cfg = FAB_CONFIG[id];
+    if(cfg){
+      fab.classList.remove('fab-hidden');
+      fab.title = cfg.title;
+    } else {
+      fab.classList.add('fab-hidden');
+    }
+  }
+}
+
+function fabAction(){
+  const cfg = FAB_CONFIG[_currentSection];
+  if(cfg) openModal(cfg.modal);
 }
 
 // ─── HST / TAX CALCULATOR ────────────────────────────────────
