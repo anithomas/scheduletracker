@@ -2430,43 +2430,57 @@ function checkAndShowReminders() {
   const rs = appConfig.reminderSettings || {};
   if (rs.enabled === false) return;
   const leadTimes = rs.leadTimes || [1, 7];
-  const maxDays = Math.max(...leadTimes);
+  const maxLeadDays = Math.max(...leadTimes);
+  const BANNER_WINDOW = 30; // show all appointments in the next 30 days in the in-app banner
   const now = new Date(); now.setHours(0,0,0,0);
+  const todayDs = now.toISOString().slice(0, 10);
   const daysUntilDate = ds => {
     if (!ds) return null;
     const d = new Date(ds); d.setHours(0,0,0,0);
     return Math.round((d - now) / 86400000);
   };
   const reminders = [];
+
   events.forEach(e => {
-    const d = daysUntilDate(e.date);
-    if (d === null || d < 0 || d > maxDays) return;
-    if (leadTimes.some(lt => d <= lt)) {
-      const label = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
-      reminders.push({ icon: '📅', title: e.title, label, member: e.member, date: e.date });
+    if (e.recurringParentId) return; // exception docs handled via parent
+    let eventDate;
+    if (e.recurrence && e.recurrence.type) {
+      // Recurring event: use next upcoming occurrence instead of series start date
+      eventDate = getNextOccurrence(e, todayDs, BANNER_WINDOW);
+      if (!eventDate) return;
+    } else {
+      eventDate = e.date;
     }
+    const d = daysUntilDate(eventDate);
+    if (d === null || d < 0 || d > BANNER_WINDOW) return;
+    const label = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
+    const isUrgent = leadTimes.some(lt => d <= lt);
+    reminders.push({ icon: '📅', title: e.title, label, member: e.member, date: eventDate, urgent: isUrgent });
   });
+
   autoRecords.forEach(r => {
     const d = daysUntilDate(r.nextDate);
-    if (d === null || d < 0 || d > maxDays) return;
+    if (d === null || d < 0 || d > maxLeadDays) return;
     if (leadTimes.some(lt => d <= lt)) {
       const veh = getVehicleForRecord(r);
       const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
-      reminders.push({ icon: '🚗', title: `${r.service}${veh ? ' — ' + vehicleDisplayName(veh) : ''}`, label, date: r.nextDate });
+      reminders.push({ icon: '🚗', title: `${r.service}${veh ? ' — ' + vehicleDisplayName(veh) : ''}`, label, date: r.nextDate, urgent: true });
     }
   });
+
   homeItems.forEach(h => {
     const d = daysUntilDate(h.nextDate);
-    if (d === null || d < 0 || d > maxDays) return;
+    if (d === null || d < 0 || d > maxLeadDays) return;
     if (leadTimes.some(lt => d <= lt)) {
       const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
-      reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label, date: h.nextDate });
+      reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label, date: h.nextDate, urgent: true });
     }
   });
+
   if (!reminders.length) return;
   reminders.sort((a, b) => (a.date||'').localeCompare(b.date||''));
   showReminderBanner(reminders);
-  const urgent = reminders.filter(r => daysUntilDate(r.date) <= 1);
+  const urgent = reminders.filter(r => r.urgent && daysUntilDate(r.date) <= 1);
   if (urgent.length && Notification.permission === 'granted') {
     urgent.forEach(r => showBrowserNotification(`${r.icon} ${r.title}`, r.label));
   }
@@ -3262,6 +3276,19 @@ async function delHome(id){
 
 // ─── CALENDAR ──────────────────────────────────────
 
+// Returns the next occurrence date (YYYY-MM-DD) of a recurring event on or after fromDs,
+// searching up to maxDays ahead. Returns null if none found.
+function getNextOccurrence(e, fromDs, maxDays = 90) {
+  if (!e.recurrence || !e.recurrence.type) return null;
+  const fromD = new Date(fromDs + 'T00:00:00');
+  for (let i = 0; i <= maxDays; i++) {
+    const d = new Date(fromD); d.setDate(d.getDate() + i);
+    const ds = d.toISOString().slice(0, 10);
+    if (isRecurringOnDay(e, ds)) return ds;
+  }
+  return null;
+}
+
 // Returns true if a recurring event (with recurrence config) falls on date string ds
 function isRecurringOnDay(e, ds) {
   if (!e.recurrence || !e.recurrence.type) return false;
@@ -3376,13 +3403,30 @@ function renderCalendar(){
   for(let i=endDay+1;i<7;i++) html+=`<div class="cal-day other-month"></div>`;
   document.getElementById('calGrid').innerHTML=html;
 
-  const upcoming=[...events].filter(e=>{const d=daysUntil(e.date);return d!==null&&d>=-1;})
-    .sort((a,b)=>a.date.localeCompare(b.date)).slice(0,30);
+  // Build upcoming list — includes recurring events (using next occurrence) and one-off events
+  const _upYest = new Date(); _upYest.setHours(0,0,0,0); _upYest.setDate(_upYest.getDate()-1);
+  const _upYestDs = _upYest.toISOString().slice(0,10);
+  const _upTodayDs = new Date(); _upTodayDs.setHours(0,0,0,0); const _upTDs = _upTodayDs.toISOString().slice(0,10);
+  const _upItems = [];
+  events.forEach(e => {
+    if (e.recurringParentId) {
+      if (e.date && e.date >= _upYestDs) _upItems.push({...e, _displayDate: e.date});
+      return;
+    }
+    if (e.recurrence && e.recurrence.type) {
+      const nextDs = getNextOccurrence(e, _upYestDs, 90);
+      if (nextDs) _upItems.push({...e, _displayDate: nextDs});
+    } else {
+      if (e.date && e.date >= _upYestDs) _upItems.push({...e, _displayDate: e.date});
+    }
+  });
+  const upcoming = _upItems.sort((a,b)=>(a._displayDate||'').localeCompare(b._displayDate||'')).slice(0,30);
   document.getElementById('eventBody').innerHTML=upcoming.map(e=>`
     <tr>
       <td>
-        <div class="td-main">${fmt(e.date)}</div>
-        ${e.endDate&&e.endDate!==e.date?`<div class="td-sub">→ ${fmt(e.endDate)}</div>`:''}
+        <div class="td-main">${fmt(e._displayDate||e.date)}</div>
+        ${e.endDate&&e.endDate!==e.date&&!e.recurrence?`<div class="td-sub">→ ${fmt(e.endDate)}</div>`:''}
+        ${e.recurrence&&e.recurrence.type?`<div class="td-sub" style="color:var(--gray-400);font-size:.72rem">🔁 ${e.recurrence.type}</div>`:''}
         ${e.time?`<div class="td-sub">${fmtTime(e.time)}</div>`:''}
       </td>
       <td><div class="td-main">${e.title}</div>${e.location?`<div class="td-sub">📍 ${e.location}</div>`:''}</td>
