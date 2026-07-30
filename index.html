@@ -3089,6 +3089,7 @@ function renderAuto() {
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
+        <button class="btn-icon btn-done" onclick="markAutoDone('${r.id}')" title="Mark done">✅</button>
         <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${r.id}')"  title="Delete">🗑</button>
       </div></td>
@@ -3164,6 +3165,32 @@ function editAuto(id){
 async function delAuto(id){
   if(!confirm('Delete this record?')) return;
   await db.collection('autoRecords').doc(id).delete(); toast('🗑 Record deleted');
+}
+
+async function markAutoDone(id){
+  const r=autoRecords.find(x=>x.id===id);
+  if(!r) return;
+  const today=TODAY.toISOString().slice(0,10);
+  const next=new Date(TODAY);
+  const val=parseInt(r.durVal)||3;
+  const unit=r.durUnit||'months';
+  if(unit==='days') next.setDate(next.getDate()+val);
+  else if(unit==='years') next.setFullYear(next.getFullYear()+val);
+  else next.setMonth(next.getMonth()+val);
+  const update={
+    lastDate:today,
+    nextDate:next.toISOString().slice(0,10),
+    updatedBy:auth.currentUser?.displayName||'',
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  const interval=parseFloat(r.kmInterval)||0;
+  if(interval>0){
+    const baseMileage=parseFloat(r.nextMileage)||parseFloat(r.mileage)||0;
+    update.mileage=String(baseMileage);
+    update.nextMileage=String(baseMileage+interval);
+  }
+  await db.collection('autoRecords').doc(id).update(update);
+  toast('✅ Marked as done! Next service date updated.');
 }
 
 // ─── HOME ──────────────────────────────────────────
