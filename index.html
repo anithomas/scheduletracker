@@ -166,6 +166,7 @@
     .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:600;}
     .badge::before{content:'';width:6px;height:6px;border-radius:50%;}
     .badge-ok{background:#d1fae5;color:#065f46;}
+    .badge-complete{background:#10b981;color:#fff;}
     .badge-ok::before{background:#10b981;}
     .badge-due{background:#fef3c7;color:#92400e;}
     .badge-due::before{background:var(--amber);}
@@ -204,6 +205,8 @@
     .btn-del:hover{background:#ffe4e6;}
     .btn-done{background:#f0fdf4;color:var(--green);}
     .btn-done:hover{background:#dcfce7;}
+    .btn-done.is-complete{background:var(--green);color:#fff;}
+    .btn-done.is-complete:hover{background:#059669;}
     .btn-attach{background:#f5f3ff;color:var(--purple);}
     .btn-attach:hover{background:#ede9fe;}
     .btn-actions{display:flex;gap:5px;}
@@ -2822,7 +2825,8 @@ function daysUntil(ds) {
   const d=new Date(ds); d.setHours(0,0,0,0);
   return Math.round((d-TODAY)/86400000);
 }
-function statusBadge(ds) {
+function statusBadge(ds, completed) {
+  if (completed) return '<span class="badge badge-complete">✅ Completed</span>';
   const d=daysUntil(ds);
   if (d===null) return '<span class="badge badge-ok">—</span>';
   if (d<0)  return `<span class="badge badge-overdue">Overdue ${Math.abs(d)}d</span>`;
@@ -3049,8 +3053,8 @@ async function uploadFiles(files, uid, prefix) {
 
 // ─── AUTO ─────────────────────────────────────────────────────
 function renderAuto() {
-  const over =autoRecords.filter(r=>{const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
-  const due30=autoRecords.filter(r=>{const d=daysUntil(r.nextDate);return d!==null&&d>=0&&d<=30;}).length;
+  const over =autoRecords.filter(r=>{if(r.completed)return false;const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
+  const due30=autoRecords.filter(r=>{if(r.completed)return false;const d=daysUntil(r.nextDate);return d!==null&&d>=0&&d<=30;}).length;
   const totalSpend=autoRecords.reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
 
   document.getElementById('autoStats').innerHTML=`
@@ -3071,7 +3075,7 @@ function renderAuto() {
           ${vRecords.slice(0,4).map(r=>`
             <div class="mini-item">
               <div><div class="mini-service">${r.service}</div><div class="mini-date">${fmt(r.nextDate)}${r.nextMileage?' · '+Number(r.nextMileage).toLocaleString()+' km':''}</div></div>
-              ${statusBadge(r.nextDate)}
+              ${statusBadge(r.nextDate,r.completed)}
             </div>`).join('')||'<div class="empty-state" style="padding:16px"><p>No records yet</p></div>'}
         </div>
       </div>`;
@@ -3085,11 +3089,11 @@ function renderAuto() {
       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
       <td><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
       <td>${costWithHst(r.cost, r.taxRate)}</td>
-      <td>${statusBadge(r.nextDate)}</td>
+      <td>${statusBadge(r.nextDate,r.completed)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done" onclick="markAutoDone('${r.id}')" title="Mark done">✅</button>
+        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${r.id}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${r.id}')"  title="Delete">🗑</button>
       </div></td>
@@ -3167,30 +3171,17 @@ async function delAuto(id){
   await db.collection('autoRecords').doc(id).delete(); toast('🗑 Record deleted');
 }
 
-async function markAutoDone(id){
+async function toggleAutoDone(id){
   const r=autoRecords.find(x=>x.id===id);
   if(!r) return;
-  const today=TODAY.toISOString().slice(0,10);
-  const next=new Date(TODAY);
-  const val=parseInt(r.durVal)||3;
-  const unit=r.durUnit||'months';
-  if(unit==='days') next.setDate(next.getDate()+val);
-  else if(unit==='years') next.setFullYear(next.getFullYear()+val);
-  else next.setMonth(next.getMonth()+val);
-  const update={
-    lastDate:today,
-    nextDate:next.toISOString().slice(0,10),
+  const completed=!r.completed;
+  await db.collection('autoRecords').doc(id).update({
+    completed:completed,
+    completedAt:completed?firebase.firestore.FieldValue.serverTimestamp():null,
     updatedBy:auth.currentUser?.displayName||'',
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  };
-  const interval=parseFloat(r.kmInterval)||0;
-  if(interval>0){
-    const baseMileage=parseFloat(r.nextMileage)||parseFloat(r.mileage)||0;
-    update.mileage=String(baseMileage);
-    update.nextMileage=String(baseMileage+interval);
-  }
-  await db.collection('autoRecords').doc(id).update(update);
-  toast('✅ Marked as done! Next service date updated.');
+  });
+  toast(completed?'✅ Marked as completed!':'↩️ Marked as not completed');
 }
 
 // ─── HOME ──────────────────────────────────────────
@@ -3203,11 +3194,11 @@ function renderHome(){
       <td>${fmt(h.lastDate)}</td>
       <td>${fmt(h.nextDate)}</td>
       <td>${costWithHst(h.cost, h.taxRate)}</td>
-      <td>${statusBadge(h.nextDate)}</td>
+      <td>${statusBadge(h.nextDate,h.completed)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done" onclick="markDone('${h.id}')" title="Mark done">✅</button>
+        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${h.id}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editHome('${h.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delHome('${h.id}')"  title="Delete">🗑</button>
       </div></td>
@@ -3216,15 +3207,17 @@ function renderHome(){
 
 function freqLabel(f){return{'30':'Monthly','60':'Every 2 Mo','90':'Quarterly','180':'6 Months','365':'Yearly'}[f]||'Custom';}
 
-async function markDone(id){
+async function toggleHomeDone(id){
   const h=homeItems.find(x=>x.id===id);
-  const today=TODAY.toISOString().slice(0,10);
-  const next=new Date(TODAY); next.setDate(next.getDate()+parseInt(h.freq||90));
+  if(!h) return;
+  const completed=!h.completed;
   await db.collection('homeItems').doc(id).update({
-    lastDate:today,nextDate:next.toISOString().slice(0,10),
+    completed:completed,
+    completedAt:completed?firebase.firestore.FieldValue.serverTimestamp():null,
     updatedBy:auth.currentUser?.displayName||'',
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  }); toast('✅ Marked as done! Next due updated.');
+  });
+  toast(completed?'✅ Marked as completed!':'↩️ Marked as not completed');
 }
 
 async function saveHome(){
@@ -3774,8 +3767,8 @@ function renderSummary(){
   const autoTotal=autoRecords.reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
   const homeTotal=homeItems.reduce((s,h)=>s+(parseFloat(h.cost)||0)*(1+HST_RATE),0);
   const combined=autoTotal+homeTotal;
-  const overAuto=autoRecords.filter(r=>{const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
-  const overHome=homeItems.filter(h=>{const d=daysUntil(h.nextDate);return d!==null&&d<0;}).length;
+  const overAuto=autoRecords.filter(r=>{if(r.completed)return false;const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
+  const overHome=homeItems.filter(h=>{if(h.completed)return false;const d=daysUntil(h.nextDate);return d!==null&&d<0;}).length;
   const todayStr=TODAY.toISOString().slice(0,10);
   const fd=new Date(TODAY); fd.setDate(fd.getDate()+30);
   const eventsNext30=events.filter(e=>e.date>=todayStr&&e.date<=fd.toISOString().slice(0,10)).length;
