@@ -1,0 +1,1685 @@
+From 5ba63abb68886b141de9b6c0754bb4a217bf4e93 Mon Sep 17 00:00:00 2001
+From: Ani Thomas <aniphilip@hotmail.com>
+Date: Thu, 10 Sep 2026 12:10:56 +0000
+Subject: [PATCH] Fix PWA assets, XSS holes, timezone bug, and recurrence edge
+ cases
+
+Missing PWA assets (was causing 404s):
+- Add manifest.json (referenced but never committed)
+- Add icon-192/512, maskable, apple-touch and favicon assets,
+  generated from the app's own brand gradient. Fixes the repeated
+  /icon-192.png 404s, broken push-notification icons, and makes the
+  app installable on Android.
+
+Security:
+- Add esc()/escJs()/safeUrl() helpers and apply across all ~20
+  innerHTML render sites (calendar, tables, reports, reminder banner,
+  admin user list, dropdowns). User-supplied titles/notes/names were
+  previously injected unescaped.
+- safeUrl() restricts attachment links to http(s), blocking
+  javascript:/data: URLs. Attachment links get rel=noopener.
+
+Correctness:
+- Replace UTC toISOString().slice(0,10) with a local-timezone toDs().
+  After ~7pm EST every "today" comparison shifted a day forward,
+  affecting reminders, upcoming list and 30-day counts.
+- Refresh TODAY/NOW on a timer and on visibilitychange so a tab left
+  open overnight stops using yesterday's date.
+- Clamp monthly recurrence to end-of-month: an event on the 31st now
+  fires Feb 28/29, Apr 30 etc. instead of skipping those months.
+- Calendar report now expands recurring series into occurrences within
+  the filter window (previously only matched the series start date),
+  and its member filter honours multi-member events.
+- memberColor(): exact name/nickname match instead of substring
+  guessing, which mis-coloured names containing another member's name.
+- delEvent() now removes orphaned exception docs when deleting a series.
+
+Robustness:
+- startListeners() detaches existing snapshot listeners first, so a
+  silent token refresh can't stack duplicates (double renders/notifs).
+- Validate required fields in saveEvent/saveAuto/saveHome, including
+  date ordering, before writing.
+- Wrap all writes/deletes in try/catch with friendlyError() messages;
+  failures previously showed a success toast.
+- beginSave()/endSave() disable the save button mid-write to prevent
+  double-submit duplicate records.
+- Use set(..., {merge:true}) on edits so unknown fields aren't wiped.
+- Cap uploads at 25MB, enforced in both preview and upload paths.
+---
+ apple-touch-icon.png  | Bin 0 -> 2356 bytes
+ favicon-64.png        | Bin 0 -> 858 bytes
+ icon-192.png          | Bin 0 -> 3742 bytes
+ icon-512.png          | Bin 0 -> 19960 bytes
+ icon-maskable-512.png | Bin 0 -> 23862 bytes
+ index.html            | 584 +++++++++++++++++++++++++++++-------------
+ manifest.json         |  32 +++
+ 7 files changed, 434 insertions(+), 182 deletions(-)
+ create mode 100644 apple-touch-icon.png
+ create mode 100644 favicon-64.png
+ create mode 100644 icon-192.png
+ create mode 100644 icon-512.png
+ create mode 100644 icon-maskable-512.png
+ create mode 100644 manifest.json
+
+diff --git a/apple-touch-icon.png b/apple-touch-icon.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e44c40c91d7f5de10657c0f069b526517b56ab6
+GIT binary patch
+literal 2356
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/favicon-64.png b/favicon-64.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1e6bc73522a18f8b9178664345e8b0ab8f8f34d
+GIT binary patch
+literal 858
+zcmV-g1Eu_lP)<h;3K|Lk000e1NJLTq002M$002M;1^@s6s%dfF0009aNkl<Zc%0?i
+zO=}ZD7zgnGf783*3nISMYHOh&RZkxD7!MxQA`wJ92tx4#_-*_G8dQqnr7B`o1QGQl
+zC19o6=3}gf-JRW;#O%wn*(d2d5SrP%w7==@KQp@%?mN5`f-Qh8kO6?`zG<_SxdkAc
+zw(~g98rWvF5ybDEc}=#BAoKgv$4whUwq@JS;{y)Z?Z9U|fv5v~#gjzfGd|h_JjRoB
+zGQc~0HUm7w6NodwQ@nKu_=q<jgTCSkvj_NzCxJj4-`}{WhL1u}9S`ijzoUY8LQn^v
+z)b6`mjpH*RsEbc(=k1NA@!<aXn_*M<{)hWR;cgvkuQ!7y5KI~#0RFDG8^IF*51hFj
+zP7>a&<5xeA51$<eOd=it{=B+4HoO@JOe)@V!pjR|!AE<59{#d(8(G^g&eo0}8iEbt
+zi)^zyVQsNiJOS|F(rQ>2zW;GG&rk%qk@p6tR(kc|vmw|JzLxs+e4!q^nG8)4KB->P
+z2?Bidvw8feT|9U9&(`L%c@aMT7*zSs4}+G%C-w8`>B@Kl;GyM*;k4}bd9~cxDu)L#
+zQx@O<^gvfRqJDJeaK7`qFy0&jdjX%+x9-Wpcqas>AD`6MC$oj{ac=A_d{SQ?&*tJu
+zV5Ugm9l7)<ZU5&4=FXdIjU&%>wn_z_iw}~Kp!C$W1|9&ucjrWSdom<BZ?9Mqe3}8m
+zix!$C!AFy!I<DAgc7OnH4TVLQt5iFnI-Yh2R>UhG0unr7LQsI$&Hw@48V6Lym*{{K
+z*Eb74cYAHISO*C3<`9tJSug|2;LAK;gtsO`l1tQzCBdhYA@TKj#SReQqk&KjixX5k
+zK!A^5Bf}TXfbn%eb^KrmR$ZK+*#QE)b4I8lUV9)Uz^5T7T$Z9)5_}YbLOiM41roeH
+z84|3?(JUc8&H&+pB+ZiG3A0YHIz9lfu+q!@LyL~>%RK+e-M$D<5<J>|9ZK-lwrnEP
+zgv{`u%50NPX)EJlEtd8V@0=0x4^NmgLVn^2_ZuUg;qArJ9^z?2&|5r`b%K84({GM?
+kicb##Pw^%MeZ>>NKV}A#EQk7rkN^Mx07*qoM6N<$f>5cFNB{r;
+
+literal 0
+HcmV?d00001
+
+diff --git a/icon-192.png b/icon-192.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..43ca0640772eb9e9d45ff2977c12c53f75621486
+GIT binary patch
+literal 3742
+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
+Ir@(~&10vps`~Uy|
+
+literal 0
+HcmV?d00001
+
+diff --git a/icon-512.png b/icon-512.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b9de7dc3dc02d3d4edfb280f2330416f034e43f
+GIT binary patch
+literal 19960
+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%0AM$e3Z6|JMWI3o2UK;gKTl
+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
+W9;Q|OBm6}-WSRMj#R+EX_xv9<LKQy%
+
+literal 0
+HcmV?d00001
+
+diff --git a/icon-maskable-512.png b/icon-maskable-512.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..de523a8830de207b375a149168f9b83a0d7db58e
+GIT binary patch
+literal 23862
+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
+a+?;im5qf5EDtr%}w%l&T;)I18_WvK){QXn_
+
+literal 0
+HcmV?d00001
+
+diff --git a/index.html b/index.html
+index 356a35a..5fd3a59 100644
+--- a/index.html
++++ b/index.html
+@@ -12,7 +12,9 @@
+   <meta name="apple-mobile-web-app-capable" content="yes" />
+   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+   <meta name="apple-mobile-web-app-title" content="Tracker" />
+-  <link rel="apple-touch-icon" href="/icon-192.png" />
++  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
++  <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
++  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+ 
+   <script>
+     const FIREBASE_CONFIG = {
+@@ -1647,6 +1649,59 @@ const auth    = firebase.auth();
+ const db      = firebase.firestore();
+ const storage = firebase.storage();
+ 
++// ─── HTML ESCAPING ───────────────────────────────────────────
++// All user-supplied strings (titles, notes, names, locations…) are rendered
++// via innerHTML template literals. Escape them so a value like
++// <img src=x onerror=...> is displayed as text instead of executing.
++const _HTML_ESC = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
++function esc(v){
++  if (v === null || v === undefined) return '';
++  return String(v).replace(/[&<>"']/g, c => _HTML_ESC[c]);
++}
++// For values placed inside a single-quoted inline handler, e.g. onclick="f('${…}')"
++function escJs(v){
++  if (v === null || v === undefined) return '';
++  return String(v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')
++                  .replace(/</g,'\\x3C').replace(/>/g,'\\x3E').replace(/\r?\n/g,' ');
++}
++// Only allow http(s) URLs in href/src to block javascript: and data: payloads
++function safeUrl(u){
++  const s = String(u || '').trim();
++  return /^https?:\/\//i.test(s) ? esc(s) : '#';
++}
++
++// ─── SAVE GUARDS & ERROR MESSAGES ────────────────────────────
++// Disables the modal's save button while a write is in flight, so an impatient
++// double-tap can't create two records (or fire two conflicting writes).
++const _savingModals = new Set();
++function _saveBtn(modalId){
++  const m = document.getElementById(modalId);
++  if (!m) return null;
++  return [...m.querySelectorAll('button')].find(b => /save|add/i.test(b.textContent)) || null;
++}
++function beginSave(modalId){
++  if (_savingModals.has(modalId)) return false;   // already saving — ignore
++  _savingModals.add(modalId);
++  const b = _saveBtn(modalId);
++  if (b){ b.dataset.prevLabel = b.textContent; b.disabled = true; b.textContent = '⏳ Saving…'; }
++  return true;
++}
++function endSave(modalId){
++  _savingModals.delete(modalId);
++  const b = _saveBtn(modalId);
++  if (b){ b.disabled = false; if (b.dataset.prevLabel) b.textContent = b.dataset.prevLabel; }
++}
++
++function friendlyError(err){
++  const code = (err && err.code) || '';
++  if (code === 'permission-denied')  return 'you don\u2019t have permission for this change.';
++  if (code === 'unavailable')        return 'no connection. Check your network and try again.';
++  if (code === 'resource-exhausted') return 'the database quota was reached. Try again later.';
++  if (code === 'not-found')          return 'that record no longer exists.';
++  if (code === 'unauthenticated')    return 'your session expired. Please sign in again.';
++  return (err && err.message) ? err.message : 'unknown error.';
++}
++
+ // Tap the dark overlay backdrop to close any modal (mobile UX)
+ document.addEventListener('click', e => {
+   if(e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')){
+@@ -1655,12 +1710,45 @@ document.addEventListener('click', e => {
+ }, {passive:true});
+ 
+ let autoRecords=[], homeItems=[], events=[];
+-const NOW   = new Date();
++// NOW/TODAY are mutable and refreshed by refreshToday() — a tab left open
++// overnight would otherwise keep calculating "days until" against a stale date,
++// making overdue badges and progress bars wrong until a manual reload.
++let NOW   = new Date();
+ let calYear  = NOW.getFullYear();
+ let calMonth = NOW.getMonth();
+-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
++let TODAY = new Date(); TODAY.setHours(0,0,0,0);
+ let unsubs = [];
+ 
++// Local-timezone YYYY-MM-DD. Using toISOString() here would convert to UTC,
++// which rolls over to "tomorrow" after ~7pm EST and shifts every date-based
++// comparison in the app by a day.
++function toDs(d){
++  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
++}
++function todayDs(){ return toDs(new Date()); }
++
++// Returns true if the calendar day changed (callers can re-render on true)
++function refreshToday(){
++  const fresh = new Date(); fresh.setHours(0,0,0,0);
++  if (fresh.getTime() === TODAY.getTime()) return false;
++  TODAY = fresh;
++  NOW   = new Date();
++  return true;
++}
++
++// Re-render when the day rolls over (checked every minute) and whenever the
++// user returns to a backgrounded tab.
++setInterval(() => { if (refreshToday()) rerenderAll(); }, 60000);
++document.addEventListener('visibilitychange', () => {
++  if (!document.hidden && refreshToday()) rerenderAll();
++});
++
++function rerenderAll(){
++  try { renderAuto(); } catch(e){}
++  try { renderHome(); } catch(e){}
++  try { renderCalendar(); } catch(e){}
++}
++
+ // ─── SETTINGS / CONFIG ────────────────────────────────────────
+ let appConfig = {
+   appName: 'Family Household Tracker',
+@@ -1864,7 +1952,7 @@ function rebuildCategoryDropdowns(){
+ }
+ 
+ function rebuildServiceDropdowns(){
+-  const opts=serviceTypes.map(s=>`<option>${s}</option>`).join('');
++  const opts=serviceTypes.map(s=>`<option>${esc(s)}</option>`).join('');
+   ['aService'].forEach(id=>{const el=document.getElementById(id);if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
+ }
+ 
+@@ -1872,7 +1960,7 @@ function renderMemberLegend(){
+   const legend=document.getElementById('calMemberLegend');
+   if(!legend) return;
+   legend.innerHTML='<span style="font-size:.73rem;font-weight:700;color:var(--gray-500);margin-right:4px;">BY MEMBER:</span>'+
+-    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${m.color}"></div>${memberDisplayName(m)}</div>`).join('')+
++    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${esc(m.color)}"></div>${esc(memberDisplayName(m))}</div>`).join('')+
+     '<div class="legend-item"><div class="legend-dot" style="background:var(--m-all)"></div>All/Family</div>';
+ }
+ 
+@@ -2436,7 +2524,7 @@ function checkAndShowReminders() {
+   const maxLeadDays = Math.max(...leadTimes);
+   const BANNER_WINDOW = 30; // show all appointments in the next 30 days in the in-app banner
+   const now = new Date(); now.setHours(0,0,0,0);
+-  const todayDs = now.toISOString().slice(0, 10);
++  const todayDs = toDs(now);
+   const daysUntilDate = ds => {
+     if (!ds) return null;
+     const d = new Date(ds); d.setHours(0,0,0,0);
+@@ -2505,8 +2593,8 @@ function showReminderBanner(reminders) {
+         <div class="reminder-item">
+           <span class="reminder-item-icon">${r.icon}</span>
+           <div class="reminder-item-text">
+-            <span class="reminder-item-title">${r.title}${r.member ? ` <span class="reminder-item-member">· ${r.member}</span>` : ''}</span>
+-            <span class="reminder-item-when">${r.label}</span>
++            <span class="reminder-item-title">${esc(r.title)}${r.member ? ` <span class="reminder-item-member">· ${esc(r.member)}</span>` : ''}</span>
++            <span class="reminder-item-when">${esc(r.label)}</span>
+           </div>
+         </div>`).join('')}
+       ${reminders.length > 5 ? `<div class="reminder-item-more">+${reminders.length-5} more</div>` : ''}
+@@ -2596,7 +2684,7 @@ function rebuildEventTypeDropdown(){
+   const el=document.getElementById('cType');
+   if(!el) return;
+   const cur=el.value;
+-  el.innerHTML=eventTypes.map(t=>`<option value="${t.value}">${t.emoji} ${t.label}</option>`).join('');
++  el.innerHTML=eventTypes.map(t=>`<option value="${esc(t.value)}">${esc(t.emoji)} ${esc(t.label)}</option>`).join('');
+   if(cur) el.value=cur;
+ }
+ 
+@@ -2698,18 +2786,18 @@ function renderUserAccess() {
+     const isSelf = self && u.email.toLowerCase()===self;
+     const selfAdmin = isSelf && u.role==='admin';
+     return `<div class="user-access-item">
+-      <div class="ua-avatar" style="background:${COLORS[i%COLORS.length]}">${initials}</div>
++      <div class="ua-avatar" style="background:${COLORS[i%COLORS.length]}">${esc(initials)}</div>
+       <div class="ua-info">
+-        <div class="ua-name">${u.name||u.email}${isSelf?' <span style="font-size:.68rem;opacity:.6">(you)</span>':''}</div>
+-        <div class="ua-email">${u.email}</div>
++        <div class="ua-name">${esc(u.name||u.email)}${isSelf?' <span style="font-size:.68rem;opacity:.6">(you)</span>':''}</div>
++        <div class="ua-email">${esc(u.email)}</div>
+       </div>
+-      <select class="role-select" onchange="setUserRole('${u.email}',this.value)" ${selfAdmin?'disabled title="Cannot demote yourself as last admin"':''}>
++      <select class="role-select" onchange="setUserRole('${escJs(u.email)}',this.value)" ${selfAdmin?'disabled title="Cannot demote yourself as last admin"':''}>
+         <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
+         <option value="contributor" ${u.role==='contributor'?'selected':''}>✏️ Contributor</option>
+         <option value="viewer" ${u.role==='viewer'?'selected':''}>👁 Viewer</option>
+         <option value="denied" ${u.role==='denied'?'selected':''}>🚫 Denied</option>
+       </select>
+-      ${!selfAdmin?`<button class="btn-icon btn-del" onclick="removeAuthorizedUser('${u.email}')" title="Remove">🗑</button>`:''}
++      ${!selfAdmin?`<button class="btn-icon btn-del" onclick="removeAuthorizedUser('${escJs(u.email)}')" title="Remove">🗑</button>`:''}
+     </div>`;
+   }).join('');
+ }
+@@ -2795,6 +2883,11 @@ auth.onAuthStateChanged(async user => {
+ 
+ // ─── REAL-TIME LISTENERS ──────────────────────────────────────
+ function startListeners() {
++  // Detach any existing listeners first. onAuthStateChanged can fire again for the
++  // same user (silent token refresh), which would otherwise stack duplicate
++  // onSnapshot subscriptions — causing double renders and repeat notifications.
++  unsubs.forEach(u => { try { u(); } catch(e){} });
++  unsubs = [];
+   setSyncStatus('connecting');
+   let initialLoad = 0;
+   const maybeCheckReminders = () => { if (++initialLoad >= 3) checkAndShowReminders(); };
+@@ -2872,14 +2965,23 @@ function toast(msg) {
+ }
+ function memberColor(member) {
+   if(!member) return 'var(--gray-400)';
+-  const m=member.toLowerCase();
++  const m=String(member).toLowerCase().trim();
+   if(m==='all'||m==='family') return 'var(--m-all)';
+-  const found=appMembers.find(x=>x.name.toLowerCase()===m);
++  // Exact match on full name or nickname — no substring guessing, which used to
++  // mis-colour any new member whose name contained an existing one
++  // (e.g. "Daniel" matched "ani").
++  const found=appMembers.find(x=>
++    String(x.name||'').toLowerCase().trim()===m ||
++    String(x.nickname||'').toLowerCase().trim()===m
++  );
+   if(found) return found.color;
+-  if(m.includes('ani')&&!m.includes('anju')) return 'var(--m-ani)';
+-  if(m.includes('anju')) return 'var(--m-anju)';
+-  if(m.includes('kevin')) return 'var(--m-kevin)';
+-  if(m.includes('rachel')) return 'var(--m-rachel)';
++  // Match on first name as a last resort ("ANI Thomas" -> "Ani")
++  const first=m.split(/\s+/)[0];
++  const byFirst=appMembers.find(x=>
++    String(x.name||'').toLowerCase().trim().split(/\s+/)[0]===first ||
++    String(x.nickname||'').toLowerCase().trim()===first
++  );
++  if(byFirst) return byFirst.color;
+   return 'var(--gray-400)';
+ }
+ 
+@@ -2997,11 +3099,20 @@ const BLOCKED_EXTS = new Set([
+   'gadget','hta','cpl','msc'
+ ]);
+ 
++const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB per file
++
+ function isSafeFile(file) {
+   const ext = (file.name.split('.').pop()||'').toLowerCase();
+   return !BLOCKED_EXTS.has(ext);
+ }
+ 
++function isAcceptableSize(file) {
++  return !file || file.size <= MAX_FILE_BYTES;
++}
++function humanSize(b){
++  return b > 1048576 ? (b/1048576).toFixed(1)+'MB' : Math.round(b/1024)+'KB';
++}
++
+ function fileIcon(urlOrName) {
+   const name = (urlOrName||'').split('?')[0].split('/').pop();
+   const ext = (name.split('.').pop()||'').toLowerCase();
+@@ -3021,11 +3132,13 @@ function previewFile(inputId, previewId) {
+   const preview = document.getElementById(previewId);
+   if(!preview || !input) return;
+   const allFiles = Array.from(input.files||[]);
+-  const safe = allFiles.filter(isSafeFile);
++  const safe = allFiles.filter(f => isSafeFile(f) && isAcceptableSize(f));
+   const blocked = allFiles.filter(f=>!isSafeFile(f));
++  const tooBig  = allFiles.filter(f=>isSafeFile(f) && !isAcceptableSize(f));
+   if(blocked.length>0) toast(`🚫 Blocked ${blocked.length} unsafe file(s): ${blocked.map(f=>f.name).join(', ')}`);
++  if(tooBig.length>0)  toast(`🚫 Too large (max ${humanSize(MAX_FILE_BYTES)}): ${tooBig.map(f=>f.name+' — '+humanSize(f.size)).join(', ')}`);
+   if(safe.length===0){preview.innerHTML='';return;}
+-  preview.innerHTML = safe.map(f=>`<div>${fileIcon(f.name)} ${f.name} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
++  preview.innerHTML = safe.map(f=>`<div>${fileIcon(f.name)} ${esc(f.name)} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
+ }
+ 
+ async function uploadFile(file, path) {
+@@ -3045,6 +3158,7 @@ async function uploadFiles(files, uid, prefix) {
+   const urls = [];
+   for(const f of files){
+     if(!isSafeFile(f)){ toast(`🚫 Skipped unsafe file: ${f.name}`); continue; }
++    if(!isAcceptableSize(f)){ toast(`🚫 Skipped ${f.name} — ${humanSize(f.size)} exceeds the ${humanSize(MAX_FILE_BYTES)} limit`); continue; }
+     const url = await uploadFile(f, `receipts/${uid}/${prefix}_${Date.now()}_${f.name}`);
+     if(url) urls.push(url);
+   }
+@@ -3068,13 +3182,13 @@ function renderAuto() {
+       const grad=`linear-gradient(135deg,${v.color||'#1e3a8a'},${lightenColor(v.color||'#1e3a8a')})`;
+       return `<div class="vehicle-card">
+         <div class="vehicle-header" style="background:${grad}">
+-          <div class="vehicle-emoji">${v.emoji||'🚗'}</div>
+-          <div class="vehicle-info"><h3>${vehicleDisplayName(v)}</h3><p>${vRecords.length} service items${v.trim?' · '+v.trim:''}</p></div>
++          <div class="vehicle-emoji">${esc(v.emoji||'🚗')}</div>
++          <div class="vehicle-info"><h3>${esc(vehicleDisplayName(v))}</h3><p>${vRecords.length} service items${v.trim?' · '+esc(v.trim):''}</p></div>
+         </div>
+         <div class="vehicle-body">
+           ${vRecords.slice(0,4).map(r=>`
+             <div class="mini-item">
+-              <div><div class="mini-service">${r.service}</div><div class="mini-date">${fmt(r.nextDate)}${r.nextMileage?' · '+Number(r.nextMileage).toLocaleString()+' km':''}</div></div>
++              <div><div class="mini-service">${esc(r.service)}</div><div class="mini-date">${fmt(r.nextDate)}${r.nextMileage?' · '+Number(r.nextMileage).toLocaleString()+' km':''}</div></div>
+               ${statusBadge(r.nextDate,r.completed)}
+             </div>`).join('')||'<div class="empty-state" style="padding:16px"><p>No records yet</p></div>'}
+         </div>
+@@ -3083,8 +3197,8 @@ function renderAuto() {
+ 
+   document.getElementById('autoBody').innerHTML=autoRecords.map(r=>`
+     <tr>
+-      <td><div class="td-main">${autoRowVehicle(r)}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
+-      <td><div class="td-main">${r.service}</div></td>
++      <td><div class="td-main">${esc(autoRowVehicle(r))}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
++      <td><div class="td-main">${esc(r.service)}</div></td>
+       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
+       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
+       <td><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
+@@ -3092,51 +3206,70 @@ function renderAuto() {
+       <td>${statusBadge(r.nextDate,r.completed)}</td>
+       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
+       <td><div class="btn-actions">
+-        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
+-        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${r.id}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
+-        <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
+-        <button class="btn-icon btn-del"  onclick="delAuto('${r.id}')"  title="Delete">🗑</button>
++        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
++        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${escJs(r.id)}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
++        <button class="btn-icon btn-edit" onclick="editAuto('${escJs(r.id)}')" title="Edit">✏️</button>
++        <button class="btn-icon btn-del"  onclick="delAuto('${escJs(r.id)}')"  title="Delete">🗑</button>
+       </div></td>
+     </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`;
+ }
+ 
+ async function saveAuto() {
+   const id=document.getElementById('autoEditId').value;
+-  const newFiles=Array.from(document.getElementById('aFile')?.files||[]);
+-  const uid=auth.currentUser?.uid||'anon';
+-  let existingUrls=[];
+-  try{ existingUrls=JSON.parse(document.getElementById('autoEditId').dataset.existingUrls||'[]'); }catch(e){}
+-  const legacyUrl=document.getElementById('autoEditId').dataset.existingUrl||null;
+-  if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
+-  let newUrls=[];
+-  if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'auto'); }
+-  const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
+-  const attachmentUrl=attachmentUrls[0]||null;
+-  const taxPct = parseFloat(document.getElementById('aTaxRate')?.value)||13;
+-  const totalOverride = parseFloat(document.getElementById('aTotalEdit')?.value)||null;
+-  const rec={
+-    vehicleId:document.getElementById('aVehicle').value,
+-    vehicle:(appVehicles.find(v=>v.id===document.getElementById('aVehicle').value)||{}).name||document.getElementById('aVehicle').value,
+-    service:document.getElementById('aService').value,
+-    lastDate:document.getElementById('aLastDate').value,
+-    nextDate:document.getElementById('aNextDate').value,
+-    mileage:document.getElementById('aMileage').value,
+-    kmInterval:document.getElementById('aKmInterval').value,
+-    nextMileage:document.getElementById('aNextMileage').value,
+-    cost:document.getElementById('aCost').value,
+-    taxRate:taxPct,
+-    totalOverride:totalOverride,
+-    durVal:document.getElementById('aDurVal').value,
+-    durUnit:document.getElementById('aDurUnit').value,
+-    notes:document.getElementById('aNotes').value,
+-    attachmentUrl:attachmentUrl||null,
+-    attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
+-    updatedBy:auth.currentUser?.displayName||'',
+-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+-  };
+-  if(id) await db.collection('autoRecords').doc(id).set(rec);
+-  else   await db.collection('autoRecords').add(rec);
+-  closeModal('autoModal'); toast('✅ Service record saved!');
++
++  // ── Validation ──
++  const _aVehicle = document.getElementById('aVehicle').value;
++  const _aService = (document.getElementById('aService').value||'').trim();
++  const _aLast    = document.getElementById('aLastDate').value;
++  const _aNext    = document.getElementById('aNextDate').value;
++  if (!_aVehicle) { toast('⚠️ Please choose a vehicle'); return; }
++  if (!_aService) { toast('⚠️ Please choose a service'); return; }
++  if (!_aLast)    { toast('⚠️ Please enter the last service date'); document.getElementById('aLastDate').focus(); return; }
++  if (_aNext && _aNext < _aLast) { toast('⚠️ Next due date cannot be before the last service date'); return; }
++
++  if (!beginSave('autoModal')) return;
++  try {
++    const newFiles=Array.from(document.getElementById('aFile')?.files||[]);
++    const uid=auth.currentUser?.uid||'anon';
++    let existingUrls=[];
++    try{ existingUrls=JSON.parse(document.getElementById('autoEditId').dataset.existingUrls||'[]'); }catch(e){}
++    const legacyUrl=document.getElementById('autoEditId').dataset.existingUrl||null;
++    if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
++    let newUrls=[];
++    if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'auto'); }
++    const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
++    const attachmentUrl=attachmentUrls[0]||null;
++    const taxPct = parseFloat(document.getElementById('aTaxRate')?.value)||13;
++    const totalOverride = parseFloat(document.getElementById('aTotalEdit')?.value)||null;
++    const rec={
++      vehicleId:_aVehicle,
++      vehicle:(appVehicles.find(v=>v.id===_aVehicle)||{}).name||_aVehicle,
++      service:_aService,
++      lastDate:_aLast,
++      nextDate:_aNext,
++      mileage:document.getElementById('aMileage').value,
++      kmInterval:document.getElementById('aKmInterval').value,
++      nextMileage:document.getElementById('aNextMileage').value,
++      cost:document.getElementById('aCost').value,
++      taxRate:taxPct,
++      totalOverride:totalOverride,
++      durVal:document.getElementById('aDurVal').value,
++      durUnit:document.getElementById('aDurUnit').value,
++      notes:document.getElementById('aNotes').value,
++      attachmentUrl:attachmentUrl||null,
++      attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
++      updatedBy:auth.currentUser?.displayName||'',
++      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
++    };
++    if(id) await db.collection('autoRecords').doc(id).set(rec, { merge: true });
++    else   await db.collection('autoRecords').add(rec);
++    closeModal('autoModal'); toast('✅ Service record saved!');
++  } catch (err) {
++    console.error('saveAuto failed:', err);
++    toast('❌ Could not save: ' + friendlyError(err));
++  } finally {
++    endSave('autoModal');
++  }
+ }
+ 
+ function editAuto(id){
+@@ -3168,7 +3301,10 @@ function editAuto(id){
+ 
+ async function delAuto(id){
+   if(!confirm('Delete this record?')) return;
+-  await db.collection('autoRecords').doc(id).delete(); toast('🗑 Record deleted');
++  try {
++    await db.collection('autoRecords').doc(id).delete();
++    toast('🗑 Record deleted');
++  } catch(err){ console.error('delAuto failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
+ }
+ 
+ async function toggleAutoDone(id){
+@@ -3188,19 +3324,19 @@ async function toggleAutoDone(id){
+ function renderHome(){
+   document.getElementById('homeBody').innerHTML=homeItems.map(h=>`
+     <tr>
+-      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${h.item}</div>${h.notes?`<div class="td-sub">${h.notes}</div>`:''}</td>
+-      <td><span class="type-badge type-general">${h.category}</span></td>
+-      <td>${h.durVal?durLabel(h.durVal,h.durUnit):freqLabel(h.freq)}</td>
++      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.notes?`<div class="td-sub">${esc(h.notes)}</div>`:''}</td>
++      <td><span class="type-badge type-general">${esc(h.category)}</span></td>
++      <td>${esc(h.durVal?durLabel(h.durVal,h.durUnit):freqLabel(h.freq))}</td>
+       <td>${fmt(h.lastDate)}</td>
+       <td>${fmt(h.nextDate)}</td>
+       <td>${costWithHst(h.cost, h.taxRate)}</td>
+       <td>${statusBadge(h.nextDate,h.completed)}</td>
+       <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
+       <td><div class="btn-actions">
+-        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
+-        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${h.id}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
+-        <button class="btn-icon btn-edit" onclick="editHome('${h.id}')" title="Edit">✏️</button>
+-        <button class="btn-icon btn-del"  onclick="delHome('${h.id}')"  title="Delete">🗑</button>
++        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
++        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${escJs(h.id)}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
++        <button class="btn-icon btn-edit" onclick="editHome('${escJs(h.id)}')" title="Edit">✏️</button>
++        <button class="btn-icon btn-del"  onclick="delHome('${escJs(h.id)}')"  title="Delete">🗑</button>
+       </div></td>
+     </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏡</div><p>No home items yet</p></div></td></tr>`;
+ }
+@@ -3222,39 +3358,56 @@ async function toggleHomeDone(id){
+ 
+ async function saveHome(){
+   const id=document.getElementById('homeEditId').value;
+-  const newFiles=Array.from(document.getElementById('hFile')?.files||[]);
+-  const uid=auth.currentUser?.uid||'anon';
+-  let existingUrls=[];
+-  try{ existingUrls=JSON.parse(document.getElementById('homeEditId').dataset.existingUrls||'[]'); }catch(e){}
+-  const legacyUrl=document.getElementById('homeEditId').dataset.existingUrl||null;
+-  if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
+-  let newUrls=[];
+-  if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'home'); }
+-  const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
+-  const attachmentUrl=attachmentUrls[0]||null;
+-  const taxPct = parseFloat(document.getElementById('hTaxRate')?.value)||13;
+-  const totalOverride = parseFloat(document.getElementById('hTotalEdit')?.value)||null;
+-  updateHomeDuration();
+-  const rec={
+-    item:document.getElementById('hItem').value,
+-    category:document.getElementById('hCategory').value,
+-    freq:document.getElementById('hFreq').value,
+-    durVal:document.getElementById('hDurVal').value,
+-    durUnit:document.getElementById('hDurUnit').value,
+-    lastDate:document.getElementById('hLastDate').value,
+-    nextDate:document.getElementById('hNextDate').value,
+-    cost:document.getElementById('hCost').value,
+-    taxRate:taxPct,
+-    totalOverride:totalOverride,
+-    notes:document.getElementById('hNotes').value,
+-    attachmentUrl:attachmentUrl||null,
+-    attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
+-    updatedBy:auth.currentUser?.displayName||'',
+-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+-  };
+-  if(id) await db.collection('homeItems').doc(id).set(rec);
+-  else   await db.collection('homeItems').add(rec);
+-  closeModal('homeModal'); toast('✅ Home item saved!');
++
++  // ── Validation ──
++  const _hItem = (document.getElementById('hItem').value||'').trim();
++  const _hLast = document.getElementById('hLastDate').value;
++  const _hNext = document.getElementById('hNextDate').value;
++  if (!_hItem) { toast('⚠️ Please enter an item name'); document.getElementById('hItem').focus(); return; }
++  if (!_hLast) { toast('⚠️ Please enter the last service date'); document.getElementById('hLastDate').focus(); return; }
++  if (_hNext && _hNext < _hLast) { toast('⚠️ Next due date cannot be before the last service date'); return; }
++
++  if (!beginSave('homeModal')) return;
++  try {
++    const newFiles=Array.from(document.getElementById('hFile')?.files||[]);
++    const uid=auth.currentUser?.uid||'anon';
++    let existingUrls=[];
++    try{ existingUrls=JSON.parse(document.getElementById('homeEditId').dataset.existingUrls||'[]'); }catch(e){}
++    const legacyUrl=document.getElementById('homeEditId').dataset.existingUrl||null;
++    if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
++    let newUrls=[];
++    if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'home'); }
++    const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
++    const attachmentUrl=attachmentUrls[0]||null;
++    const taxPct = parseFloat(document.getElementById('hTaxRate')?.value)||13;
++    const totalOverride = parseFloat(document.getElementById('hTotalEdit')?.value)||null;
++    updateHomeDuration();
++    const rec={
++      item:_hItem,
++      category:document.getElementById('hCategory').value,
++      freq:document.getElementById('hFreq').value,
++      durVal:document.getElementById('hDurVal').value,
++      durUnit:document.getElementById('hDurUnit').value,
++      lastDate:_hLast,
++      nextDate:_hNext,
++      cost:document.getElementById('hCost').value,
++      taxRate:taxPct,
++      totalOverride:totalOverride,
++      notes:document.getElementById('hNotes').value,
++      attachmentUrl:attachmentUrl||null,
++      attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
++      updatedBy:auth.currentUser?.displayName||'',
++      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
++    };
++    if(id) await db.collection('homeItems').doc(id).set(rec, { merge: true });
++    else   await db.collection('homeItems').add(rec);
++    closeModal('homeModal'); toast('✅ Home item saved!');
++  } catch (err) {
++    console.error('saveHome failed:', err);
++    toast('❌ Could not save: ' + friendlyError(err));
++  } finally {
++    endSave('homeModal');
++  }
+ }
+ 
+ function editHome(id){
+@@ -3291,7 +3444,10 @@ function editHome(id){
+ 
+ async function delHome(id){
+   if(!confirm('Delete?')) return;
+-  await db.collection('homeItems').doc(id).delete(); toast('🗑 Item deleted');
++  try {
++    await db.collection('homeItems').doc(id).delete();
++    toast('🗑 Item deleted');
++  } catch(err){ console.error('delHome failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
+ }
+ 
+ // ─── CALENDAR ──────────────────────────────────────
+@@ -3303,7 +3459,7 @@ function getNextOccurrence(e, fromDs, maxDays = 90) {
+   const fromD = new Date(fromDs + 'T00:00:00');
+   for (let i = 0; i <= maxDays; i++) {
+     const d = new Date(fromD); d.setDate(d.getDate() + i);
+-    const ds = d.toISOString().slice(0, 10);
++    const ds = toDs(d);
+     if (isRecurringOnDay(e, ds)) return ds;
+   }
+   return null;
+@@ -3344,7 +3500,12 @@ function isRecurringOnDay(e, ds) {
+     const checkM    = checkD.getFullYear() * 12 + checkD.getMonth();
+     const diffM     = checkM - startM;
+     if (diffM < 0 || diffM % interval !== 0) return false;
+-    return checkD.getDate() === startD.getDate();
++    // Clamp to the last day of the target month: an event on the 31st should
++    // still fire on Feb 28/29, Apr 30, etc. rather than silently skipping
++    // every month that has no such day number.
++    const daysInCheckMonth = new Date(checkD.getFullYear(), checkD.getMonth() + 1, 0).getDate();
++    const targetDay = Math.min(startD.getDate(), daysInCheckMonth);
++    return checkD.getDate() === targetDay;
+   }
+   return false;
+ }
+@@ -3384,7 +3545,7 @@ function renderCalendar(){
+     first.toLocaleString('en-CA',{month:'long',year:'numeric'});
+   let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(n=>`<div class="cal-day-name">${n}</div>`).join('');
+   for(let i=0;i<first.getDay();i++) html+=`<div class="cal-day other-month"></div>`;
+-  const todayStr=TODAY.toISOString().slice(0,10);
++  const todayStr=toDs(TODAY);
+   for(let d=1;d<=last.getDate();d++){
+     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+     const isToday=ds===todayStr;
+@@ -3399,7 +3560,7 @@ function renderCalendar(){
+     const tooltipRows=dayEvts.map(e=>{
+       const mems=eMembers(e);
+       const dots=mems.map(m=>`<span class="cal-tooltip-dot" style="background:${memberColor(m)}"></span>`).join('');
+-      return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${e.title}${isRange(e)?' 📅':''}${mems.length?' · '+mems.join(', '):''}</span></div>`;
++      return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${esc(e.title)}${isRange(e)?' 📅':''}${mems.length?' · '+esc(mems.join(', ')):''}</span></div>`;
+     }).join('');
+     const inRange=dayEvts.some(e=>isRange(e)&&ds>e.date&&ds<=(e.endDate||e.date));
+     html+=`<div class="cal-day${isToday?' today':''}${isPast&&!isToday?' past-day':''}${inRange?' in-range':''}" onclick="openCalDay('${ds}')">
+@@ -3413,7 +3574,7 @@ function renderCalendar(){
+         // For multi-member: show a gradient-like bar using first member color, with tiny dots for extras
+         const extraDots=mems.slice(1).map(m=>`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${memberColor(m)};margin-left:2px;vertical-align:middle;border:1px solid rgba(255,255,255,.7)"></span>`).join('');
+         const isEventPast=(e.endDate||e.date)<todayStr;
+-        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}${extraDots}</div>`;
++        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${escJs(e.id)}','${escJs(instDate)}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${esc(e.title)}${extraDots}</div>`;
+       }).join('')}
+       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
+       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
+@@ -3425,8 +3586,8 @@ function renderCalendar(){
+ 
+   // Build upcoming list — includes recurring events (using next occurrence) and one-off events
+   const _upYest = new Date(); _upYest.setHours(0,0,0,0); _upYest.setDate(_upYest.getDate()-1);
+-  const _upYestDs = _upYest.toISOString().slice(0,10);
+-  const _upTodayDs = new Date(); _upTodayDs.setHours(0,0,0,0); const _upTDs = _upTodayDs.toISOString().slice(0,10);
++  const _upYestDs = toDs(_upYest);
++  const _upTodayDs = new Date(); _upTodayDs.setHours(0,0,0,0); const _upTDs = toDs(_upTodayDs);
+   const _upItems = [];
+   events.forEach(e => {
+     if (e.recurringParentId) {
+@@ -3449,17 +3610,17 @@ function renderCalendar(){
+         ${e.recurrence&&e.recurrence.type?`<div class="td-sub" style="color:var(--gray-400);font-size:.72rem">🔁 ${e.recurrence.type}</div>`:''}
+         ${e.time?`<div class="td-sub">${fmtTime(e.time)}</div>`:''}
+       </td>
+-      <td><div class="td-main">${e.title}</div>${e.location?`<div class="td-sub">📍 ${e.location}</div>`:''}</td>
++      <td><div class="td-main">${esc(e.title)}</div>${e.location?`<div class="td-sub">📍 ${esc(e.location)}</div>`:''}</td>
+       <td><span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.82rem;flex-wrap:wrap">
+-        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${m}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
++        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${esc(m)}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
+       </span></td>
+-      <td><span class="type-badge type-${e.type}">${e.type}</span></td>
+-      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes||'—'}</div></td>
+-      <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${e.recurrence.type}</span>`:''}</div></td>
++      <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
++      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes?esc(e.notes):'—'}</div></td>
++      <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${esc(e.recurrence.type)}</span>`:''}</div></td>
+       <td><div class="btn-actions">
+-        <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${e.id}')">📆</button>
+-        <button class="btn-icon btn-edit" onclick="editEvent('${e.id}','')">✏️</button>
+-        <button class="btn-icon btn-del"  onclick="delEvent('${e.id}','')">🗑</button>
++        <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${escJs(e.id)}')">📆</button>
++        <button class="btn-icon btn-edit" onclick="editEvent('${escJs(e.id)}','')">✏️</button>
++        <button class="btn-icon btn-del"  onclick="delEvent('${escJs(e.id)}','')">🗑</button>
+       </div></td>
+     </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
+ }
+@@ -3497,6 +3658,20 @@ async function saveEvent(){
+   const endDate         = document.getElementById('cEndDate').value;
+   const recurType       = document.getElementById('cRecur').value;
+ 
++  // ── Validation ──
++  const _title = (document.getElementById('cTitle').value||'').trim();
++  if (!_title)     { toast('⚠️ Please enter an event title'); document.getElementById('cTitle').focus(); return; }
++  if (!startDate)  { toast('⚠️ Please choose a start date');  document.getElementById('cDate').focus();  return; }
++  if (endDate && endDate < startDate) { toast('⚠️ End date cannot be before the start date'); return; }
++  const _recurEndVal = document.getElementById('cRecurEnd')?.value;
++  if (recurType && _recurEndVal && _recurEndVal < startDate) {
++    toast('⚠️ Repeat-until date cannot be before the start date'); return;
++  }
++  if (recurType === 'weekly') {
++    const _anyDay = document.querySelectorAll('input[name="recurDay"]:checked').length;
++    if (!_anyDay) { /* falls back to the start date's weekday — allowed */ }
++  }
++
+   // Build recurrence object
+   let recurrence = null;
+   if (recurType) {
+@@ -3515,7 +3690,7 @@ async function saveEvent(){
+   const _primaryMember=_selMembers[0]||'';
+ 
+   const baseRec = {
+-    title:              document.getElementById('cTitle').value,
++    title:              _title,
+     date:               startDate,
+     endDate:            endDate&&endDate>=startDate?endDate:startDate,
+     time:               document.getElementById('cTime').value,
+@@ -3530,40 +3705,48 @@ async function saveEvent(){
+     updatedAt:          firebase.firestore.FieldValue.serverTimestamp(),
+   };
+ 
+-  // ── Case 1: editing a specific occurrence of a recurring series ──
+-  if (instanceDate && id && !editAllFuture) {
+-    // Create a standalone exception event for this occurrence
+-    const exceptionRec = {
+-      ...baseRec,
+-      date:              instanceDate,
+-      endDate:           instanceDate,
+-      recurringParentId: id,
+-      exceptionDate:     instanceDate,
+-      recurrence:        null,
+-    };
+-    await db.collection('events').add(exceptionRec);
+-    // Mark this date as an exception on the parent so the series skips it
+-    const parentSnap = await db.collection('events').doc(id).get();
+-    const parentData = parentSnap.data() || {};
+-    const existingExceptions = (parentData.recurrence?.exceptions) || [];
+-    await db.collection('events').doc(id).update({
+-      'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
+-    });
+-    closeModal('calModal'); toast('✅ This occurrence updated!');
+-    return;
+-  }
++  if (!beginSave('calModal')) return;
++  try {
++    // ── Case 1: editing a specific occurrence of a recurring series ──
++    if (instanceDate && id && !editAllFuture) {
++      // Create a standalone exception event for this occurrence
++      const exceptionRec = {
++        ...baseRec,
++        date:              instanceDate,
++        endDate:           instanceDate,
++        recurringParentId: id,
++        exceptionDate:     instanceDate,
++        recurrence:        null,
++      };
++      await db.collection('events').add(exceptionRec);
++      // Mark this date as an exception on the parent so the series skips it
++      const parentSnap = await db.collection('events').doc(id).get();
++      const parentData = parentSnap.data() || {};
++      const existingExceptions = (parentData.recurrence?.exceptions) || [];
++      await db.collection('events').doc(id).update({
++        'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
++      });
++      closeModal('calModal'); toast('✅ This occurrence updated!');
++      return;
++    }
+ 
+-  // ── Case 2: new event or editing entire series / non-recurring ──
+-  const rec = { ...baseRec };
+-  if (recurrence) {
+-    rec.recurrence = recurrence;
+-  } else {
+-    // Explicitly clear recurrence when removing it
+-    rec.recurrence = null;
++    // ── Case 2: new event or editing entire series / non-recurring ──
++    const rec = { ...baseRec };
++    if (recurrence) {
++      rec.recurrence = recurrence;
++    } else {
++      // Explicitly clear recurrence when removing it
++      rec.recurrence = null;
++    }
++    if (id) await db.collection('events').doc(id).set(rec, { merge: true });
++    else    await db.collection('events').add(rec);
++    closeModal('calModal'); toast('✅ Event saved!');
++  } catch (err) {
++    console.error('saveEvent failed:', err);
++    toast('❌ Could not save: ' + friendlyError(err));
++  } finally {
++    endSave('calModal');
+   }
+-  if (id) await db.collection('events').doc(id).set(rec);
+-  else    await db.collection('events').add(rec);
+-  closeModal('calModal'); toast('✅ Event saved!');
+ }
+ 
+ function editEvent(id, instanceDate=''){
+@@ -3636,10 +3819,12 @@ async function delEvent(id, instanceDate=''){
+     // Deleting one occurrence of a recurring series
+     if(!confirm(`Remove only the ${instanceDate} occurrence of "${e.title}"?`)) return;
+     const existing = e.recurrence.exceptions || [];
+-    await db.collection('events').doc(id).update({
+-      'recurrence.exceptions': [...new Set([...existing, instanceDate])],
+-    });
+-    toast('🗑 Occurrence removed');
++    try {
++      await db.collection('events').doc(id).update({
++        'recurrence.exceptions': [...new Set([...existing, instanceDate])],
++      });
++      toast('🗑 Occurrence removed');
++    } catch(err){ console.error('delEvent occurrence failed:',err); toast('❌ Could not remove: '+friendlyError(err)); }
+     return;
+   }
+ 
+@@ -3648,8 +3833,17 @@ async function delEvent(id, instanceDate=''){
+     ? `Delete the ENTIRE series for "${e.title}"? This removes all occurrences.`
+     : 'Delete this event?';
+   if(!confirm(msg)) return;
+-  await db.collection('events').doc(id).delete();
+-  toast('🗑 Event deleted');
++  try {
++    // Clean up any standalone exception docs belonging to this series
++    if (e.recurrence && e.recurrence.type) {
++      const kids = events.filter(x => x.recurringParentId === id);
++      for (const k of kids) {
++        try { await db.collection('events').doc(k.id).delete(); } catch(e2){}
++      }
++    }
++    await db.collection('events').doc(id).delete();
++    toast('🗑 Event deleted');
++  } catch(err){ console.error('delEvent failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
+ }
+ 
+ // ─── GOOGLE CALENDAR SYNC (Phase 4) ───────────────
+@@ -3769,22 +3963,22 @@ function renderSummary(){
+   const combined=autoTotal+homeTotal;
+   const overAuto=autoRecords.filter(r=>{if(r.completed)return false;const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
+   const overHome=homeItems.filter(h=>{if(h.completed)return false;const d=daysUntil(h.nextDate);return d!==null&&d<0;}).length;
+-  const todayStr=TODAY.toISOString().slice(0,10);
++  const todayStr=toDs(TODAY);
+   const fd=new Date(TODAY); fd.setDate(fd.getDate()+30);
+-  const eventsNext30=events.filter(e=>e.date>=todayStr&&e.date<=fd.toISOString().slice(0,10)).length;
++  const eventsNext30=events.filter(e=>e.date>=todayStr&&e.date<=toDs(fd)).length;
+   const homeByCat={};
+   homeItems.forEach(h=>{const c=h.category||'Other';homeByCat[c]=(homeByCat[c]||0)+(parseFloat(h.cost)||0)*(1+HST_RATE);});
+-  const catRows=Object.entries(homeByCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td><div class="td-main">${CAT_ICONS[c]||'📦'} ${c}</div></td><td><div class="td-main">$${v.toFixed(2)}</div></td></tr>`).join('');
++  const catRows=Object.entries(homeByCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td><div class="td-main">${CAT_ICONS[c]||'📦'} ${esc(c)}</div></td><td><div class="td-main">$${v.toFixed(2)}</div></td></tr>`).join('');
+   const byMember={};
+   events.forEach(e=>{const m=e.member||'Unknown';byMember[m]=(byMember[m]||0)+1;});
+   const memberRows=Object.entries(byMember).sort((a,b)=>b[1]-a[1]).map(([m,c])=>`
+     <tr><td><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600">
+-      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${m}
++      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${esc(m)}
+     </span></td><td><div class="td-main">${c}</div></td></tr>`).join('');
+   // Dynamic vehicle spend rows
+   const vehicleRows=appVehicles.map(v=>{
+     const vCost=autoRecords.filter(r=>getVehicleForRecord(r)&&getVehicleForRecord(r).id===v.id).reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
+-    return `<tr><td><div class="td-main">${v.emoji||'🚗'} ${v.name}</div></td><td><div class="td-main">${vCost>0?'$'+vCost.toFixed(2):'$0'}</div></td></tr>`;
++    return `<tr><td><div class="td-main">${esc(v.emoji||'🚗')} ${esc(v.name)}</div></td><td><div class="td-main">${vCost>0?'$'+vCost.toFixed(2):'$0'}</div></td></tr>`;
+   }).join('');
+   el.innerHTML=`
+     <div class="report-total-row">
+@@ -3845,13 +4039,13 @@ function renderReportAuto(){
+     const tot=r.totalOverride||c*(1+taxPct/100);
+     const taxAmt=tot-c;
+     return `<tr>
+-      <td><div class="td-main">${r.vehicle}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
+-      <td><div class="td-main">${r.service}</div>${r.mileage?`<div class="td-sub">${Number(r.mileage).toLocaleString('en-CA')} km</div>`:''}</td>
++      <td><div class="td-main">${esc(r.vehicle)}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
++      <td><div class="td-main">${esc(r.service)}</div>${r.mileage?`<div class="td-sub">${Number(r.mileage).toLocaleString('en-CA')} km</div>`:''}</td>
+       <td>${fmt(r.lastDate)}</td>
+       <td>${c>0?'$'+c.toFixed(2):'—'}</td>
+       <td>${c>0?taxPct+'% · $'+taxAmt.toFixed(2):'—'}</td>
+       <td><strong>${tot>0?'$'+tot.toFixed(2):'—'}</strong></td>
+-      <td>${r.attachmentUrl?`<a class="attachment-link" href="${r.attachmentUrl}" target="_blank">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
++      <td>${r.attachmentUrl?`<a class="attachment-link" href="${safeUrl(r.attachmentUrl)}" target="_blank" rel="noopener noreferrer">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
+     </tr>`;
+   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚗</div><p>No records match filters</p></div></td></tr>`;
+ }
+@@ -3882,13 +4076,13 @@ function renderReportHome(){
+     const tot=h.totalOverride||c*(1+taxPct/100);
+     const taxAmt=tot-c;
+     return `<tr>
+-      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${h.item}</div>${h.durVal?`<div class="td-sub">${durLabel(h.durVal,h.durUnit)}</div>`:''}</td>
+-      <td><span class="type-badge type-general">${h.category}</span></td>
++      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.durVal?`<div class="td-sub">${esc(durLabel(h.durVal,h.durUnit))}</div>`:''}</td>
++      <td><span class="type-badge type-general">${esc(h.category)}</span></td>
+       <td>${fmt(h.lastDate)}</td>
+       <td>${c>0?'$'+c.toFixed(2):'—'}</td>
+       <td>${c>0?taxPct+'% · $'+taxAmt.toFixed(2):'—'}</td>
+       <td><strong>${tot>0?'$'+tot.toFixed(2):'—'}</strong></td>
+-      <td>${h.attachmentUrl?`<a class="attachment-link" href="${h.attachmentUrl}" target="_blank">📎 View</a>`:'—'}</td>
++      <td>${h.attachmentUrl?`<a class="attachment-link" href="${safeUrl(h.attachmentUrl)}" target="_blank" rel="noopener noreferrer">📎 View</a>`:'—'}</td>
+     </tr>`;
+   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏡</div><p>No records match filters</p></div></td></tr>`;
+ }
+@@ -3898,28 +4092,54 @@ function renderReportCal(){
+   const tFilter=document.getElementById('rfCalType')?.value||'';
+   const from=document.getElementById('rfCalFrom')?.value||'';
+   const to=document.getElementById('rfCalTo')?.value||'';
+-  let data=[...events];
+-  if(mFilter) data=data.filter(e=>e.member===mFilter);
++
++  // Expand recurring series into their individual occurrences so a weekly event
++  // that started months ago still shows up in a report for the current window.
++  // Without a range the expansion is unbounded, so default to a 1-year window.
++  const _rangeFrom = from || todayDs();
++  const _rangeTo   = to   || (()=>{ const d=new Date(); d.setFullYear(d.getFullYear()+1); return toDs(d); })();
++
++  let data=[];
++  events.forEach(e=>{
++    if (e.recurrence && e.recurrence.type) {
++      // Walk the range day by day, collecting matching occurrences (capped for safety)
++      const start = new Date(_rangeFrom+'T00:00:00');
++      const end   = new Date(_rangeTo+'T00:00:00');
++      let guard = 0;
++      for(let d=new Date(start); d<=end && guard<1000; d.setDate(d.getDate()+1), guard++){
++        const ds = toDs(d);
++        if (isRecurringOnDay(e, ds)) {
++          // Skip dates that have a standalone exception doc (edited occurrence)
++          const hasException = events.some(ex => ex.recurringParentId===e.id && ex.exceptionDate===ds);
++          if (!hasException) data.push({...e, date: ds, endDate: ds, _isRecurringInstance:true});
++        }
++      }
++    } else {
++      data.push(e);
++    }
++  });
++
++  if(mFilter) data=data.filter(e=>(e.members&&e.members.length?e.members.includes(mFilter):e.member===mFilter));
+   if(tFilter) data=data.filter(e=>e.type===tFilter);
+   if(from) data=data.filter(e=>e.date>=from);
+   if(to)   data=data.filter(e=>e.date<=to);
+-  data.sort((a,b)=>a.date.localeCompare(b.date));
++  data.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+   const byType={};
+   data.forEach(e=>{byType[e.type]=(byType[e.type]||0)+1;});
+   document.getElementById('calReportTotals').innerHTML=`
+     <div class="report-total-card"><div class="report-total-label">Total Events</div><div class="report-total-val">${data.length}</div></div>
+-    ${Object.entries(byType).map(([t,c])=>`<div class="report-total-card"><div class="report-total-label">${t}</div><div class="report-total-val">${c}</div></div>`).join('')}`;
++    ${Object.entries(byType).map(([t,c])=>`<div class="report-total-card"><div class="report-total-label">${esc(t)}</div><div class="report-total-val">${c}</div></div>`).join('')}`;
+   document.getElementById('calReportBody').innerHTML=data.map(e=>`
+     <tr>
+       <td><div class="td-main">${fmt(e.date)}</div>${e.endDate&&e.endDate!==e.date?`<div class="td-sub">→ ${fmt(e.endDate)}</div>`:''}</td>
+       <td>${e.time?fmtTime(e.time):'—'}</td>
+-      <td><div class="td-main">${e.title}</div></td>
++      <td><div class="td-main">${esc(e.title)}</div></td>
+       <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:.82rem">
+-        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member||'—'}
++        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member?esc(e.member):'—'}
+       </span></td>
+-      <td><span class="type-badge type-${e.type}">${e.type}</span></td>
+-      <td><div style="font-size:.79rem">${e.location||'—'}</div></td>
+-      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:140px">${e.notes||'—'}</div></td>
++      <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
++      <td><div style="font-size:.79rem">${e.location?esc(e.location):'—'}</div></td>
++      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:140px">${e.notes?esc(e.notes):'—'}</div></td>
+     </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No events match filters</p></div></td></tr>`;
+ }
+ 
+diff --git a/manifest.json b/manifest.json
+new file mode 100644
+index 0000000..d90aa1e
+--- /dev/null
++++ b/manifest.json
+@@ -0,0 +1,32 @@
++{
++  "name": "Family Household Tracker",
++  "short_name": "Tracker",
++  "description": "Family calendar, auto maintenance, and home schedules — all in one place.",
++  "start_url": "/",
++  "scope": "/",
++  "display": "standalone",
++  "orientation": "portrait-primary",
++  "background_color": "#1e293b",
++  "theme_color": "#1d4ed8",
++  "categories": ["productivity", "lifestyle", "utilities"],
++  "icons": [
++    {
++      "src": "/icon-192.png",
++      "sizes": "192x192",
++      "type": "image/png",
++      "purpose": "any"
++    },
++    {
++      "src": "/icon-512.png",
++      "sizes": "512x512",
++      "type": "image/png",
++      "purpose": "any"
++    },
++    {
++      "src": "/icon-maskable-512.png",
++      "sizes": "512x512",
++      "type": "image/png",
++      "purpose": "maskable"
++    }
++  ]
++}
+-- 
+2.43.0
+

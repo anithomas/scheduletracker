@@ -12,7 +12,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Tracker" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
 
   <script>
     const FIREBASE_CONFIG = {
@@ -1647,6 +1649,59 @@ const auth    = firebase.auth();
 const db      = firebase.firestore();
 const storage = firebase.storage();
 
+// ─── HTML ESCAPING ───────────────────────────────────────────
+// All user-supplied strings (titles, notes, names, locations…) are rendered
+// via innerHTML template literals. Escape them so a value like
+// <img src=x onerror=...> is displayed as text instead of executing.
+const _HTML_ESC = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+function esc(v){
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, c => _HTML_ESC[c]);
+}
+// For values placed inside a single-quoted inline handler, e.g. onclick="f('${…}')"
+function escJs(v){
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')
+                  .replace(/</g,'\\x3C').replace(/>/g,'\\x3E').replace(/\r?\n/g,' ');
+}
+// Only allow http(s) URLs in href/src to block javascript: and data: payloads
+function safeUrl(u){
+  const s = String(u || '').trim();
+  return /^https?:\/\//i.test(s) ? esc(s) : '#';
+}
+
+// ─── SAVE GUARDS & ERROR MESSAGES ────────────────────────────
+// Disables the modal's save button while a write is in flight, so an impatient
+// double-tap can't create two records (or fire two conflicting writes).
+const _savingModals = new Set();
+function _saveBtn(modalId){
+  const m = document.getElementById(modalId);
+  if (!m) return null;
+  return [...m.querySelectorAll('button')].find(b => /save|add/i.test(b.textContent)) || null;
+}
+function beginSave(modalId){
+  if (_savingModals.has(modalId)) return false;   // already saving — ignore
+  _savingModals.add(modalId);
+  const b = _saveBtn(modalId);
+  if (b){ b.dataset.prevLabel = b.textContent; b.disabled = true; b.textContent = '⏳ Saving…'; }
+  return true;
+}
+function endSave(modalId){
+  _savingModals.delete(modalId);
+  const b = _saveBtn(modalId);
+  if (b){ b.disabled = false; if (b.dataset.prevLabel) b.textContent = b.dataset.prevLabel; }
+}
+
+function friendlyError(err){
+  const code = (err && err.code) || '';
+  if (code === 'permission-denied')  return 'you don\u2019t have permission for this change.';
+  if (code === 'unavailable')        return 'no connection. Check your network and try again.';
+  if (code === 'resource-exhausted') return 'the database quota was reached. Try again later.';
+  if (code === 'not-found')          return 'that record no longer exists.';
+  if (code === 'unauthenticated')    return 'your session expired. Please sign in again.';
+  return (err && err.message) ? err.message : 'unknown error.';
+}
+
 // Tap the dark overlay backdrop to close any modal (mobile UX)
 document.addEventListener('click', e => {
   if(e.target.classList.contains('modal-overlay') && e.target.classList.contains('open')){
@@ -1655,11 +1710,44 @@ document.addEventListener('click', e => {
 }, {passive:true});
 
 let autoRecords=[], homeItems=[], events=[];
-const NOW   = new Date();
+// NOW/TODAY are mutable and refreshed by refreshToday() — a tab left open
+// overnight would otherwise keep calculating "days until" against a stale date,
+// making overdue badges and progress bars wrong until a manual reload.
+let NOW   = new Date();
 let calYear  = NOW.getFullYear();
 let calMonth = NOW.getMonth();
-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+let TODAY = new Date(); TODAY.setHours(0,0,0,0);
 let unsubs = [];
+
+// Local-timezone YYYY-MM-DD. Using toISOString() here would convert to UTC,
+// which rolls over to "tomorrow" after ~7pm EST and shifts every date-based
+// comparison in the app by a day.
+function toDs(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayDs(){ return toDs(new Date()); }
+
+// Returns true if the calendar day changed (callers can re-render on true)
+function refreshToday(){
+  const fresh = new Date(); fresh.setHours(0,0,0,0);
+  if (fresh.getTime() === TODAY.getTime()) return false;
+  TODAY = fresh;
+  NOW   = new Date();
+  return true;
+}
+
+// Re-render when the day rolls over (checked every minute) and whenever the
+// user returns to a backgrounded tab.
+setInterval(() => { if (refreshToday()) rerenderAll(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && refreshToday()) rerenderAll();
+});
+
+function rerenderAll(){
+  try { renderAuto(); } catch(e){}
+  try { renderHome(); } catch(e){}
+  try { renderCalendar(); } catch(e){}
+}
 
 // ─── SETTINGS / CONFIG ────────────────────────────────────────
 let appConfig = {
@@ -1864,7 +1952,7 @@ function rebuildCategoryDropdowns(){
 }
 
 function rebuildServiceDropdowns(){
-  const opts=serviceTypes.map(s=>`<option>${s}</option>`).join('');
+  const opts=serviceTypes.map(s=>`<option>${esc(s)}</option>`).join('');
   ['aService'].forEach(id=>{const el=document.getElementById(id);if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
 }
 
@@ -1872,7 +1960,7 @@ function renderMemberLegend(){
   const legend=document.getElementById('calMemberLegend');
   if(!legend) return;
   legend.innerHTML='<span style="font-size:.73rem;font-weight:700;color:var(--gray-500);margin-right:4px;">BY MEMBER:</span>'+
-    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${m.color}"></div>${memberDisplayName(m)}</div>`).join('')+
+    appMembers.map(m=>`<div class="legend-item"><div class="legend-dot" style="background:${esc(m.color)}"></div>${esc(memberDisplayName(m))}</div>`).join('')+
     '<div class="legend-item"><div class="legend-dot" style="background:var(--m-all)"></div>All/Family</div>';
 }
 
@@ -2436,7 +2524,7 @@ function checkAndShowReminders() {
   const maxLeadDays = Math.max(...leadTimes);
   const BANNER_WINDOW = 30; // show all appointments in the next 30 days in the in-app banner
   const now = new Date(); now.setHours(0,0,0,0);
-  const todayDs = now.toISOString().slice(0, 10);
+  const todayDs = toDs(now);
   const daysUntilDate = ds => {
     if (!ds) return null;
     const d = new Date(ds); d.setHours(0,0,0,0);
@@ -2505,8 +2593,8 @@ function showReminderBanner(reminders) {
         <div class="reminder-item">
           <span class="reminder-item-icon">${r.icon}</span>
           <div class="reminder-item-text">
-            <span class="reminder-item-title">${r.title}${r.member ? ` <span class="reminder-item-member">· ${r.member}</span>` : ''}</span>
-            <span class="reminder-item-when">${r.label}</span>
+            <span class="reminder-item-title">${esc(r.title)}${r.member ? ` <span class="reminder-item-member">· ${esc(r.member)}</span>` : ''}</span>
+            <span class="reminder-item-when">${esc(r.label)}</span>
           </div>
         </div>`).join('')}
       ${reminders.length > 5 ? `<div class="reminder-item-more">+${reminders.length-5} more</div>` : ''}
@@ -2596,7 +2684,7 @@ function rebuildEventTypeDropdown(){
   const el=document.getElementById('cType');
   if(!el) return;
   const cur=el.value;
-  el.innerHTML=eventTypes.map(t=>`<option value="${t.value}">${t.emoji} ${t.label}</option>`).join('');
+  el.innerHTML=eventTypes.map(t=>`<option value="${esc(t.value)}">${esc(t.emoji)} ${esc(t.label)}</option>`).join('');
   if(cur) el.value=cur;
 }
 
@@ -2698,18 +2786,18 @@ function renderUserAccess() {
     const isSelf = self && u.email.toLowerCase()===self;
     const selfAdmin = isSelf && u.role==='admin';
     return `<div class="user-access-item">
-      <div class="ua-avatar" style="background:${COLORS[i%COLORS.length]}">${initials}</div>
+      <div class="ua-avatar" style="background:${COLORS[i%COLORS.length]}">${esc(initials)}</div>
       <div class="ua-info">
-        <div class="ua-name">${u.name||u.email}${isSelf?' <span style="font-size:.68rem;opacity:.6">(you)</span>':''}</div>
-        <div class="ua-email">${u.email}</div>
+        <div class="ua-name">${esc(u.name||u.email)}${isSelf?' <span style="font-size:.68rem;opacity:.6">(you)</span>':''}</div>
+        <div class="ua-email">${esc(u.email)}</div>
       </div>
-      <select class="role-select" onchange="setUserRole('${u.email}',this.value)" ${selfAdmin?'disabled title="Cannot demote yourself as last admin"':''}>
+      <select class="role-select" onchange="setUserRole('${escJs(u.email)}',this.value)" ${selfAdmin?'disabled title="Cannot demote yourself as last admin"':''}>
         <option value="admin" ${u.role==='admin'?'selected':''}>👑 Admin</option>
         <option value="contributor" ${u.role==='contributor'?'selected':''}>✏️ Contributor</option>
         <option value="viewer" ${u.role==='viewer'?'selected':''}>👁 Viewer</option>
         <option value="denied" ${u.role==='denied'?'selected':''}>🚫 Denied</option>
       </select>
-      ${!selfAdmin?`<button class="btn-icon btn-del" onclick="removeAuthorizedUser('${u.email}')" title="Remove">🗑</button>`:''}
+      ${!selfAdmin?`<button class="btn-icon btn-del" onclick="removeAuthorizedUser('${escJs(u.email)}')" title="Remove">🗑</button>`:''}
     </div>`;
   }).join('');
 }
@@ -2795,6 +2883,11 @@ auth.onAuthStateChanged(async user => {
 
 // ─── REAL-TIME LISTENERS ──────────────────────────────────────
 function startListeners() {
+  // Detach any existing listeners first. onAuthStateChanged can fire again for the
+  // same user (silent token refresh), which would otherwise stack duplicate
+  // onSnapshot subscriptions — causing double renders and repeat notifications.
+  unsubs.forEach(u => { try { u(); } catch(e){} });
+  unsubs = [];
   setSyncStatus('connecting');
   let initialLoad = 0;
   const maybeCheckReminders = () => { if (++initialLoad >= 3) checkAndShowReminders(); };
@@ -2872,14 +2965,23 @@ function toast(msg) {
 }
 function memberColor(member) {
   if(!member) return 'var(--gray-400)';
-  const m=member.toLowerCase();
+  const m=String(member).toLowerCase().trim();
   if(m==='all'||m==='family') return 'var(--m-all)';
-  const found=appMembers.find(x=>x.name.toLowerCase()===m);
+  // Exact match on full name or nickname — no substring guessing, which used to
+  // mis-colour any new member whose name contained an existing one
+  // (e.g. "Daniel" matched "ani").
+  const found=appMembers.find(x=>
+    String(x.name||'').toLowerCase().trim()===m ||
+    String(x.nickname||'').toLowerCase().trim()===m
+  );
   if(found) return found.color;
-  if(m.includes('ani')&&!m.includes('anju')) return 'var(--m-ani)';
-  if(m.includes('anju')) return 'var(--m-anju)';
-  if(m.includes('kevin')) return 'var(--m-kevin)';
-  if(m.includes('rachel')) return 'var(--m-rachel)';
+  // Match on first name as a last resort ("ANI Thomas" -> "Ani")
+  const first=m.split(/\s+/)[0];
+  const byFirst=appMembers.find(x=>
+    String(x.name||'').toLowerCase().trim().split(/\s+/)[0]===first ||
+    String(x.nickname||'').toLowerCase().trim()===first
+  );
+  if(byFirst) return byFirst.color;
   return 'var(--gray-400)';
 }
 
@@ -2997,9 +3099,18 @@ const BLOCKED_EXTS = new Set([
   'gadget','hta','cpl','msc'
 ]);
 
+const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB per file
+
 function isSafeFile(file) {
   const ext = (file.name.split('.').pop()||'').toLowerCase();
   return !BLOCKED_EXTS.has(ext);
+}
+
+function isAcceptableSize(file) {
+  return !file || file.size <= MAX_FILE_BYTES;
+}
+function humanSize(b){
+  return b > 1048576 ? (b/1048576).toFixed(1)+'MB' : Math.round(b/1024)+'KB';
 }
 
 function fileIcon(urlOrName) {
@@ -3021,11 +3132,13 @@ function previewFile(inputId, previewId) {
   const preview = document.getElementById(previewId);
   if(!preview || !input) return;
   const allFiles = Array.from(input.files||[]);
-  const safe = allFiles.filter(isSafeFile);
+  const safe = allFiles.filter(f => isSafeFile(f) && isAcceptableSize(f));
   const blocked = allFiles.filter(f=>!isSafeFile(f));
+  const tooBig  = allFiles.filter(f=>isSafeFile(f) && !isAcceptableSize(f));
   if(blocked.length>0) toast(`🚫 Blocked ${blocked.length} unsafe file(s): ${blocked.map(f=>f.name).join(', ')}`);
+  if(tooBig.length>0)  toast(`🚫 Too large (max ${humanSize(MAX_FILE_BYTES)}): ${tooBig.map(f=>f.name+' — '+humanSize(f.size)).join(', ')}`);
   if(safe.length===0){preview.innerHTML='';return;}
-  preview.innerHTML = safe.map(f=>`<div>${fileIcon(f.name)} ${f.name} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
+  preview.innerHTML = safe.map(f=>`<div>${fileIcon(f.name)} ${esc(f.name)} (${f.size>1048576?(f.size/1048576).toFixed(1)+'MB':Math.round(f.size/1024)+'KB'})</div>`).join('');
 }
 
 async function uploadFile(file, path) {
@@ -3045,6 +3158,7 @@ async function uploadFiles(files, uid, prefix) {
   const urls = [];
   for(const f of files){
     if(!isSafeFile(f)){ toast(`🚫 Skipped unsafe file: ${f.name}`); continue; }
+    if(!isAcceptableSize(f)){ toast(`🚫 Skipped ${f.name} — ${humanSize(f.size)} exceeds the ${humanSize(MAX_FILE_BYTES)} limit`); continue; }
     const url = await uploadFile(f, `receipts/${uid}/${prefix}_${Date.now()}_${f.name}`);
     if(url) urls.push(url);
   }
@@ -3068,13 +3182,13 @@ function renderAuto() {
       const grad=`linear-gradient(135deg,${v.color||'#1e3a8a'},${lightenColor(v.color||'#1e3a8a')})`;
       return `<div class="vehicle-card">
         <div class="vehicle-header" style="background:${grad}">
-          <div class="vehicle-emoji">${v.emoji||'🚗'}</div>
-          <div class="vehicle-info"><h3>${vehicleDisplayName(v)}</h3><p>${vRecords.length} service items${v.trim?' · '+v.trim:''}</p></div>
+          <div class="vehicle-emoji">${esc(v.emoji||'🚗')}</div>
+          <div class="vehicle-info"><h3>${esc(vehicleDisplayName(v))}</h3><p>${vRecords.length} service items${v.trim?' · '+esc(v.trim):''}</p></div>
         </div>
         <div class="vehicle-body">
           ${vRecords.slice(0,4).map(r=>`
             <div class="mini-item">
-              <div><div class="mini-service">${r.service}</div><div class="mini-date">${fmt(r.nextDate)}${r.nextMileage?' · '+Number(r.nextMileage).toLocaleString()+' km':''}</div></div>
+              <div><div class="mini-service">${esc(r.service)}</div><div class="mini-date">${fmt(r.nextDate)}${r.nextMileage?' · '+Number(r.nextMileage).toLocaleString()+' km':''}</div></div>
               ${statusBadge(r.nextDate,r.completed)}
             </div>`).join('')||'<div class="empty-state" style="padding:16px"><p>No records yet</p></div>'}
         </div>
@@ -3083,8 +3197,8 @@ function renderAuto() {
 
   document.getElementById('autoBody').innerHTML=autoRecords.map(r=>`
     <tr>
-      <td><div class="td-main">${autoRowVehicle(r)}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
-      <td><div class="td-main">${r.service}</div></td>
+      <td><div class="td-main">${esc(autoRowVehicle(r))}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
+      <td><div class="td-main">${esc(r.service)}</div></td>
       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
       <td><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
@@ -3092,51 +3206,70 @@ function renderAuto() {
       <td>${statusBadge(r.nextDate,r.completed)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
-        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${r.id}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
-        <button class="btn-icon btn-edit" onclick="editAuto('${r.id}')" title="Edit">✏️</button>
-        <button class="btn-icon btn-del"  onclick="delAuto('${r.id}')"  title="Delete">🗑</button>
+        ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
+        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${escJs(r.id)}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
+        <button class="btn-icon btn-edit" onclick="editAuto('${escJs(r.id)}')" title="Edit">✏️</button>
+        <button class="btn-icon btn-del"  onclick="delAuto('${escJs(r.id)}')"  title="Delete">🗑</button>
       </div></td>
     </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`;
 }
 
 async function saveAuto() {
   const id=document.getElementById('autoEditId').value;
-  const newFiles=Array.from(document.getElementById('aFile')?.files||[]);
-  const uid=auth.currentUser?.uid||'anon';
-  let existingUrls=[];
-  try{ existingUrls=JSON.parse(document.getElementById('autoEditId').dataset.existingUrls||'[]'); }catch(e){}
-  const legacyUrl=document.getElementById('autoEditId').dataset.existingUrl||null;
-  if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
-  let newUrls=[];
-  if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'auto'); }
-  const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
-  const attachmentUrl=attachmentUrls[0]||null;
-  const taxPct = parseFloat(document.getElementById('aTaxRate')?.value)||13;
-  const totalOverride = parseFloat(document.getElementById('aTotalEdit')?.value)||null;
-  const rec={
-    vehicleId:document.getElementById('aVehicle').value,
-    vehicle:(appVehicles.find(v=>v.id===document.getElementById('aVehicle').value)||{}).name||document.getElementById('aVehicle').value,
-    service:document.getElementById('aService').value,
-    lastDate:document.getElementById('aLastDate').value,
-    nextDate:document.getElementById('aNextDate').value,
-    mileage:document.getElementById('aMileage').value,
-    kmInterval:document.getElementById('aKmInterval').value,
-    nextMileage:document.getElementById('aNextMileage').value,
-    cost:document.getElementById('aCost').value,
-    taxRate:taxPct,
-    totalOverride:totalOverride,
-    durVal:document.getElementById('aDurVal').value,
-    durUnit:document.getElementById('aDurUnit').value,
-    notes:document.getElementById('aNotes').value,
-    attachmentUrl:attachmentUrl||null,
-    attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
-    updatedBy:auth.currentUser?.displayName||'',
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  };
-  if(id) await db.collection('autoRecords').doc(id).set(rec);
-  else   await db.collection('autoRecords').add(rec);
-  closeModal('autoModal'); toast('✅ Service record saved!');
+
+  // ── Validation ──
+  const _aVehicle = document.getElementById('aVehicle').value;
+  const _aService = (document.getElementById('aService').value||'').trim();
+  const _aLast    = document.getElementById('aLastDate').value;
+  const _aNext    = document.getElementById('aNextDate').value;
+  if (!_aVehicle) { toast('⚠️ Please choose a vehicle'); return; }
+  if (!_aService) { toast('⚠️ Please choose a service'); return; }
+  if (!_aLast)    { toast('⚠️ Please enter the last service date'); document.getElementById('aLastDate').focus(); return; }
+  if (_aNext && _aNext < _aLast) { toast('⚠️ Next due date cannot be before the last service date'); return; }
+
+  if (!beginSave('autoModal')) return;
+  try {
+    const newFiles=Array.from(document.getElementById('aFile')?.files||[]);
+    const uid=auth.currentUser?.uid||'anon';
+    let existingUrls=[];
+    try{ existingUrls=JSON.parse(document.getElementById('autoEditId').dataset.existingUrls||'[]'); }catch(e){}
+    const legacyUrl=document.getElementById('autoEditId').dataset.existingUrl||null;
+    if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
+    let newUrls=[];
+    if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'auto'); }
+    const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
+    const attachmentUrl=attachmentUrls[0]||null;
+    const taxPct = parseFloat(document.getElementById('aTaxRate')?.value)||13;
+    const totalOverride = parseFloat(document.getElementById('aTotalEdit')?.value)||null;
+    const rec={
+      vehicleId:_aVehicle,
+      vehicle:(appVehicles.find(v=>v.id===_aVehicle)||{}).name||_aVehicle,
+      service:_aService,
+      lastDate:_aLast,
+      nextDate:_aNext,
+      mileage:document.getElementById('aMileage').value,
+      kmInterval:document.getElementById('aKmInterval').value,
+      nextMileage:document.getElementById('aNextMileage').value,
+      cost:document.getElementById('aCost').value,
+      taxRate:taxPct,
+      totalOverride:totalOverride,
+      durVal:document.getElementById('aDurVal').value,
+      durUnit:document.getElementById('aDurUnit').value,
+      notes:document.getElementById('aNotes').value,
+      attachmentUrl:attachmentUrl||null,
+      attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
+      updatedBy:auth.currentUser?.displayName||'',
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if(id) await db.collection('autoRecords').doc(id).set(rec, { merge: true });
+    else   await db.collection('autoRecords').add(rec);
+    closeModal('autoModal'); toast('✅ Service record saved!');
+  } catch (err) {
+    console.error('saveAuto failed:', err);
+    toast('❌ Could not save: ' + friendlyError(err));
+  } finally {
+    endSave('autoModal');
+  }
 }
 
 function editAuto(id){
@@ -3168,7 +3301,10 @@ function editAuto(id){
 
 async function delAuto(id){
   if(!confirm('Delete this record?')) return;
-  await db.collection('autoRecords').doc(id).delete(); toast('🗑 Record deleted');
+  try {
+    await db.collection('autoRecords').doc(id).delete();
+    toast('🗑 Record deleted');
+  } catch(err){ console.error('delAuto failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
 }
 
 async function toggleAutoDone(id){
@@ -3188,19 +3324,19 @@ async function toggleAutoDone(id){
 function renderHome(){
   document.getElementById('homeBody').innerHTML=homeItems.map(h=>`
     <tr>
-      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${h.item}</div>${h.notes?`<div class="td-sub">${h.notes}</div>`:''}</td>
-      <td><span class="type-badge type-general">${h.category}</span></td>
-      <td>${h.durVal?durLabel(h.durVal,h.durUnit):freqLabel(h.freq)}</td>
+      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.notes?`<div class="td-sub">${esc(h.notes)}</div>`:''}</td>
+      <td><span class="type-badge type-general">${esc(h.category)}</span></td>
+      <td>${esc(h.durVal?durLabel(h.durVal,h.durUnit):freqLabel(h.freq))}</td>
       <td>${fmt(h.lastDate)}</td>
       <td>${fmt(h.nextDate)}</td>
       <td>${costWithHst(h.cost, h.taxRate)}</td>
       <td>${statusBadge(h.nextDate,h.completed)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
       <td><div class="btn-actions">
-        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${u}" target="_blank" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${h.id}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
-        <button class="btn-icon btn-edit" onclick="editHome('${h.id}')" title="Edit">✏️</button>
-        <button class="btn-icon btn-del"  onclick="delHome('${h.id}')"  title="Delete">🗑</button>
+        ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
+        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${escJs(h.id)}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
+        <button class="btn-icon btn-edit" onclick="editHome('${escJs(h.id)}')" title="Edit">✏️</button>
+        <button class="btn-icon btn-del"  onclick="delHome('${escJs(h.id)}')"  title="Delete">🗑</button>
       </div></td>
     </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏡</div><p>No home items yet</p></div></td></tr>`;
 }
@@ -3222,39 +3358,56 @@ async function toggleHomeDone(id){
 
 async function saveHome(){
   const id=document.getElementById('homeEditId').value;
-  const newFiles=Array.from(document.getElementById('hFile')?.files||[]);
-  const uid=auth.currentUser?.uid||'anon';
-  let existingUrls=[];
-  try{ existingUrls=JSON.parse(document.getElementById('homeEditId').dataset.existingUrls||'[]'); }catch(e){}
-  const legacyUrl=document.getElementById('homeEditId').dataset.existingUrl||null;
-  if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
-  let newUrls=[];
-  if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'home'); }
-  const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
-  const attachmentUrl=attachmentUrls[0]||null;
-  const taxPct = parseFloat(document.getElementById('hTaxRate')?.value)||13;
-  const totalOverride = parseFloat(document.getElementById('hTotalEdit')?.value)||null;
-  updateHomeDuration();
-  const rec={
-    item:document.getElementById('hItem').value,
-    category:document.getElementById('hCategory').value,
-    freq:document.getElementById('hFreq').value,
-    durVal:document.getElementById('hDurVal').value,
-    durUnit:document.getElementById('hDurUnit').value,
-    lastDate:document.getElementById('hLastDate').value,
-    nextDate:document.getElementById('hNextDate').value,
-    cost:document.getElementById('hCost').value,
-    taxRate:taxPct,
-    totalOverride:totalOverride,
-    notes:document.getElementById('hNotes').value,
-    attachmentUrl:attachmentUrl||null,
-    attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
-    updatedBy:auth.currentUser?.displayName||'',
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  };
-  if(id) await db.collection('homeItems').doc(id).set(rec);
-  else   await db.collection('homeItems').add(rec);
-  closeModal('homeModal'); toast('✅ Home item saved!');
+
+  // ── Validation ──
+  const _hItem = (document.getElementById('hItem').value||'').trim();
+  const _hLast = document.getElementById('hLastDate').value;
+  const _hNext = document.getElementById('hNextDate').value;
+  if (!_hItem) { toast('⚠️ Please enter an item name'); document.getElementById('hItem').focus(); return; }
+  if (!_hLast) { toast('⚠️ Please enter the last service date'); document.getElementById('hLastDate').focus(); return; }
+  if (_hNext && _hNext < _hLast) { toast('⚠️ Next due date cannot be before the last service date'); return; }
+
+  if (!beginSave('homeModal')) return;
+  try {
+    const newFiles=Array.from(document.getElementById('hFile')?.files||[]);
+    const uid=auth.currentUser?.uid||'anon';
+    let existingUrls=[];
+    try{ existingUrls=JSON.parse(document.getElementById('homeEditId').dataset.existingUrls||'[]'); }catch(e){}
+    const legacyUrl=document.getElementById('homeEditId').dataset.existingUrl||null;
+    if(legacyUrl && !existingUrls.includes(legacyUrl)) existingUrls.unshift(legacyUrl);
+    let newUrls=[];
+    if(newFiles.length>0){ newUrls=await uploadFiles(newFiles,uid,'home'); }
+    const attachmentUrls=[...existingUrls,...newUrls].filter(Boolean);
+    const attachmentUrl=attachmentUrls[0]||null;
+    const taxPct = parseFloat(document.getElementById('hTaxRate')?.value)||13;
+    const totalOverride = parseFloat(document.getElementById('hTotalEdit')?.value)||null;
+    updateHomeDuration();
+    const rec={
+      item:_hItem,
+      category:document.getElementById('hCategory').value,
+      freq:document.getElementById('hFreq').value,
+      durVal:document.getElementById('hDurVal').value,
+      durUnit:document.getElementById('hDurUnit').value,
+      lastDate:_hLast,
+      nextDate:_hNext,
+      cost:document.getElementById('hCost').value,
+      taxRate:taxPct,
+      totalOverride:totalOverride,
+      notes:document.getElementById('hNotes').value,
+      attachmentUrl:attachmentUrl||null,
+      attachmentUrls:attachmentUrls.length>0?attachmentUrls:null,
+      updatedBy:auth.currentUser?.displayName||'',
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if(id) await db.collection('homeItems').doc(id).set(rec, { merge: true });
+    else   await db.collection('homeItems').add(rec);
+    closeModal('homeModal'); toast('✅ Home item saved!');
+  } catch (err) {
+    console.error('saveHome failed:', err);
+    toast('❌ Could not save: ' + friendlyError(err));
+  } finally {
+    endSave('homeModal');
+  }
 }
 
 function editHome(id){
@@ -3291,7 +3444,10 @@ function editHome(id){
 
 async function delHome(id){
   if(!confirm('Delete?')) return;
-  await db.collection('homeItems').doc(id).delete(); toast('🗑 Item deleted');
+  try {
+    await db.collection('homeItems').doc(id).delete();
+    toast('🗑 Item deleted');
+  } catch(err){ console.error('delHome failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
 }
 
 // ─── CALENDAR ──────────────────────────────────────
@@ -3303,7 +3459,7 @@ function getNextOccurrence(e, fromDs, maxDays = 90) {
   const fromD = new Date(fromDs + 'T00:00:00');
   for (let i = 0; i <= maxDays; i++) {
     const d = new Date(fromD); d.setDate(d.getDate() + i);
-    const ds = d.toISOString().slice(0, 10);
+    const ds = toDs(d);
     if (isRecurringOnDay(e, ds)) return ds;
   }
   return null;
@@ -3344,7 +3500,12 @@ function isRecurringOnDay(e, ds) {
     const checkM    = checkD.getFullYear() * 12 + checkD.getMonth();
     const diffM     = checkM - startM;
     if (diffM < 0 || diffM % interval !== 0) return false;
-    return checkD.getDate() === startD.getDate();
+    // Clamp to the last day of the target month: an event on the 31st should
+    // still fire on Feb 28/29, Apr 30, etc. rather than silently skipping
+    // every month that has no such day number.
+    const daysInCheckMonth = new Date(checkD.getFullYear(), checkD.getMonth() + 1, 0).getDate();
+    const targetDay = Math.min(startD.getDate(), daysInCheckMonth);
+    return checkD.getDate() === targetDay;
   }
   return false;
 }
@@ -3384,7 +3545,7 @@ function renderCalendar(){
     first.toLocaleString('en-CA',{month:'long',year:'numeric'});
   let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(n=>`<div class="cal-day-name">${n}</div>`).join('');
   for(let i=0;i<first.getDay();i++) html+=`<div class="cal-day other-month"></div>`;
-  const todayStr=TODAY.toISOString().slice(0,10);
+  const todayStr=toDs(TODAY);
   for(let d=1;d<=last.getDate();d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=ds===todayStr;
@@ -3399,7 +3560,7 @@ function renderCalendar(){
     const tooltipRows=dayEvts.map(e=>{
       const mems=eMembers(e);
       const dots=mems.map(m=>`<span class="cal-tooltip-dot" style="background:${memberColor(m)}"></span>`).join('');
-      return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${e.title}${isRange(e)?' 📅':''}${mems.length?' · '+mems.join(', '):''}</span></div>`;
+      return `<div class="cal-tooltip-row">${dots}<span><strong>${e.time?fmtTime(e.time)+' ':''}</strong>${esc(e.title)}${isRange(e)?' 📅':''}${mems.length?' · '+esc(mems.join(', ')):''}</span></div>`;
     }).join('');
     const inRange=dayEvts.some(e=>isRange(e)&&ds>e.date&&ds<=(e.endDate||e.date));
     html+=`<div class="cal-day${isToday?' today':''}${isPast&&!isToday?' past-day':''}${inRange?' in-range':''}" onclick="openCalDay('${ds}')">
@@ -3413,7 +3574,7 @@ function renderCalendar(){
         // For multi-member: show a gradient-like bar using first member color, with tiny dots for extras
         const extraDots=mems.slice(1).map(m=>`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${memberColor(m)};margin-left:2px;vertical-align:middle;border:1px solid rgba(255,255,255,.7)"></span>`).join('');
         const isEventPast=(e.endDate||e.date)<todayStr;
-        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${e.id}','${instDate}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${e.title}${extraDots}</div>`;
+        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${escJs(e.id)}','${escJs(instDate)}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${esc(e.title)}${extraDots}</div>`;
       }).join('')}
       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
@@ -3425,8 +3586,8 @@ function renderCalendar(){
 
   // Build upcoming list — includes recurring events (using next occurrence) and one-off events
   const _upYest = new Date(); _upYest.setHours(0,0,0,0); _upYest.setDate(_upYest.getDate()-1);
-  const _upYestDs = _upYest.toISOString().slice(0,10);
-  const _upTodayDs = new Date(); _upTodayDs.setHours(0,0,0,0); const _upTDs = _upTodayDs.toISOString().slice(0,10);
+  const _upYestDs = toDs(_upYest);
+  const _upTodayDs = new Date(); _upTodayDs.setHours(0,0,0,0); const _upTDs = toDs(_upTodayDs);
   const _upItems = [];
   events.forEach(e => {
     if (e.recurringParentId) {
@@ -3449,17 +3610,17 @@ function renderCalendar(){
         ${e.recurrence&&e.recurrence.type?`<div class="td-sub" style="color:var(--gray-400);font-size:.72rem">🔁 ${e.recurrence.type}</div>`:''}
         ${e.time?`<div class="td-sub">${fmtTime(e.time)}</div>`:''}
       </td>
-      <td><div class="td-main">${e.title}</div>${e.location?`<div class="td-sub">📍 ${e.location}</div>`:''}</td>
+      <td><div class="td-main">${esc(e.title)}</div>${e.location?`<div class="td-sub">📍 ${esc(e.location)}</div>`:''}</td>
       <td><span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.82rem;flex-wrap:wrap">
-        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${m}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
+        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${esc(m)}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
       </span></td>
-      <td><span class="type-badge type-${e.type}">${e.type}</span></td>
-      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes||'—'}</div></td>
-      <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${e.recurrence.type}</span>`:''}</div></td>
+      <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
+      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes?esc(e.notes):'—'}</div></td>
+      <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${esc(e.recurrence.type)}</span>`:''}</div></td>
       <td><div class="btn-actions">
-        <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${e.id}')">📆</button>
-        <button class="btn-icon btn-edit" onclick="editEvent('${e.id}','')">✏️</button>
-        <button class="btn-icon btn-del"  onclick="delEvent('${e.id}','')">🗑</button>
+        <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${escJs(e.id)}')">📆</button>
+        <button class="btn-icon btn-edit" onclick="editEvent('${escJs(e.id)}','')">✏️</button>
+        <button class="btn-icon btn-del"  onclick="delEvent('${escJs(e.id)}','')">🗑</button>
       </div></td>
     </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
 }
@@ -3497,6 +3658,20 @@ async function saveEvent(){
   const endDate         = document.getElementById('cEndDate').value;
   const recurType       = document.getElementById('cRecur').value;
 
+  // ── Validation ──
+  const _title = (document.getElementById('cTitle').value||'').trim();
+  if (!_title)     { toast('⚠️ Please enter an event title'); document.getElementById('cTitle').focus(); return; }
+  if (!startDate)  { toast('⚠️ Please choose a start date');  document.getElementById('cDate').focus();  return; }
+  if (endDate && endDate < startDate) { toast('⚠️ End date cannot be before the start date'); return; }
+  const _recurEndVal = document.getElementById('cRecurEnd')?.value;
+  if (recurType && _recurEndVal && _recurEndVal < startDate) {
+    toast('⚠️ Repeat-until date cannot be before the start date'); return;
+  }
+  if (recurType === 'weekly') {
+    const _anyDay = document.querySelectorAll('input[name="recurDay"]:checked').length;
+    if (!_anyDay) { /* falls back to the start date's weekday — allowed */ }
+  }
+
   // Build recurrence object
   let recurrence = null;
   if (recurType) {
@@ -3515,7 +3690,7 @@ async function saveEvent(){
   const _primaryMember=_selMembers[0]||'';
 
   const baseRec = {
-    title:              document.getElementById('cTitle').value,
+    title:              _title,
     date:               startDate,
     endDate:            endDate&&endDate>=startDate?endDate:startDate,
     time:               document.getElementById('cTime').value,
@@ -3530,40 +3705,48 @@ async function saveEvent(){
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp(),
   };
 
-  // ── Case 1: editing a specific occurrence of a recurring series ──
-  if (instanceDate && id && !editAllFuture) {
-    // Create a standalone exception event for this occurrence
-    const exceptionRec = {
-      ...baseRec,
-      date:              instanceDate,
-      endDate:           instanceDate,
-      recurringParentId: id,
-      exceptionDate:     instanceDate,
-      recurrence:        null,
-    };
-    await db.collection('events').add(exceptionRec);
-    // Mark this date as an exception on the parent so the series skips it
-    const parentSnap = await db.collection('events').doc(id).get();
-    const parentData = parentSnap.data() || {};
-    const existingExceptions = (parentData.recurrence?.exceptions) || [];
-    await db.collection('events').doc(id).update({
-      'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
-    });
-    closeModal('calModal'); toast('✅ This occurrence updated!');
-    return;
-  }
+  if (!beginSave('calModal')) return;
+  try {
+    // ── Case 1: editing a specific occurrence of a recurring series ──
+    if (instanceDate && id && !editAllFuture) {
+      // Create a standalone exception event for this occurrence
+      const exceptionRec = {
+        ...baseRec,
+        date:              instanceDate,
+        endDate:           instanceDate,
+        recurringParentId: id,
+        exceptionDate:     instanceDate,
+        recurrence:        null,
+      };
+      await db.collection('events').add(exceptionRec);
+      // Mark this date as an exception on the parent so the series skips it
+      const parentSnap = await db.collection('events').doc(id).get();
+      const parentData = parentSnap.data() || {};
+      const existingExceptions = (parentData.recurrence?.exceptions) || [];
+      await db.collection('events').doc(id).update({
+        'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
+      });
+      closeModal('calModal'); toast('✅ This occurrence updated!');
+      return;
+    }
 
-  // ── Case 2: new event or editing entire series / non-recurring ──
-  const rec = { ...baseRec };
-  if (recurrence) {
-    rec.recurrence = recurrence;
-  } else {
-    // Explicitly clear recurrence when removing it
-    rec.recurrence = null;
+    // ── Case 2: new event or editing entire series / non-recurring ──
+    const rec = { ...baseRec };
+    if (recurrence) {
+      rec.recurrence = recurrence;
+    } else {
+      // Explicitly clear recurrence when removing it
+      rec.recurrence = null;
+    }
+    if (id) await db.collection('events').doc(id).set(rec, { merge: true });
+    else    await db.collection('events').add(rec);
+    closeModal('calModal'); toast('✅ Event saved!');
+  } catch (err) {
+    console.error('saveEvent failed:', err);
+    toast('❌ Could not save: ' + friendlyError(err));
+  } finally {
+    endSave('calModal');
   }
-  if (id) await db.collection('events').doc(id).set(rec);
-  else    await db.collection('events').add(rec);
-  closeModal('calModal'); toast('✅ Event saved!');
 }
 
 function editEvent(id, instanceDate=''){
@@ -3636,10 +3819,12 @@ async function delEvent(id, instanceDate=''){
     // Deleting one occurrence of a recurring series
     if(!confirm(`Remove only the ${instanceDate} occurrence of "${e.title}"?`)) return;
     const existing = e.recurrence.exceptions || [];
-    await db.collection('events').doc(id).update({
-      'recurrence.exceptions': [...new Set([...existing, instanceDate])],
-    });
-    toast('🗑 Occurrence removed');
+    try {
+      await db.collection('events').doc(id).update({
+        'recurrence.exceptions': [...new Set([...existing, instanceDate])],
+      });
+      toast('🗑 Occurrence removed');
+    } catch(err){ console.error('delEvent occurrence failed:',err); toast('❌ Could not remove: '+friendlyError(err)); }
     return;
   }
 
@@ -3648,8 +3833,17 @@ async function delEvent(id, instanceDate=''){
     ? `Delete the ENTIRE series for "${e.title}"? This removes all occurrences.`
     : 'Delete this event?';
   if(!confirm(msg)) return;
-  await db.collection('events').doc(id).delete();
-  toast('🗑 Event deleted');
+  try {
+    // Clean up any standalone exception docs belonging to this series
+    if (e.recurrence && e.recurrence.type) {
+      const kids = events.filter(x => x.recurringParentId === id);
+      for (const k of kids) {
+        try { await db.collection('events').doc(k.id).delete(); } catch(e2){}
+      }
+    }
+    await db.collection('events').doc(id).delete();
+    toast('🗑 Event deleted');
+  } catch(err){ console.error('delEvent failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
 }
 
 // ─── GOOGLE CALENDAR SYNC (Phase 4) ───────────────
@@ -3769,22 +3963,22 @@ function renderSummary(){
   const combined=autoTotal+homeTotal;
   const overAuto=autoRecords.filter(r=>{if(r.completed)return false;const d=daysUntil(r.nextDate);return d!==null&&d<0;}).length;
   const overHome=homeItems.filter(h=>{if(h.completed)return false;const d=daysUntil(h.nextDate);return d!==null&&d<0;}).length;
-  const todayStr=TODAY.toISOString().slice(0,10);
+  const todayStr=toDs(TODAY);
   const fd=new Date(TODAY); fd.setDate(fd.getDate()+30);
-  const eventsNext30=events.filter(e=>e.date>=todayStr&&e.date<=fd.toISOString().slice(0,10)).length;
+  const eventsNext30=events.filter(e=>e.date>=todayStr&&e.date<=toDs(fd)).length;
   const homeByCat={};
   homeItems.forEach(h=>{const c=h.category||'Other';homeByCat[c]=(homeByCat[c]||0)+(parseFloat(h.cost)||0)*(1+HST_RATE);});
-  const catRows=Object.entries(homeByCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td><div class="td-main">${CAT_ICONS[c]||'📦'} ${c}</div></td><td><div class="td-main">$${v.toFixed(2)}</div></td></tr>`).join('');
+  const catRows=Object.entries(homeByCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td><div class="td-main">${CAT_ICONS[c]||'📦'} ${esc(c)}</div></td><td><div class="td-main">$${v.toFixed(2)}</div></td></tr>`).join('');
   const byMember={};
   events.forEach(e=>{const m=e.member||'Unknown';byMember[m]=(byMember[m]||0)+1;});
   const memberRows=Object.entries(byMember).sort((a,b)=>b[1]-a[1]).map(([m,c])=>`
     <tr><td><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600">
-      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${m}
+      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${esc(m)}
     </span></td><td><div class="td-main">${c}</div></td></tr>`).join('');
   // Dynamic vehicle spend rows
   const vehicleRows=appVehicles.map(v=>{
     const vCost=autoRecords.filter(r=>getVehicleForRecord(r)&&getVehicleForRecord(r).id===v.id).reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
-    return `<tr><td><div class="td-main">${v.emoji||'🚗'} ${v.name}</div></td><td><div class="td-main">${vCost>0?'$'+vCost.toFixed(2):'$0'}</div></td></tr>`;
+    return `<tr><td><div class="td-main">${esc(v.emoji||'🚗')} ${esc(v.name)}</div></td><td><div class="td-main">${vCost>0?'$'+vCost.toFixed(2):'$0'}</div></td></tr>`;
   }).join('');
   el.innerHTML=`
     <div class="report-total-row">
@@ -3845,13 +4039,13 @@ function renderReportAuto(){
     const tot=r.totalOverride||c*(1+taxPct/100);
     const taxAmt=tot-c;
     return `<tr>
-      <td><div class="td-main">${r.vehicle}</div>${r.durVal?`<div class="td-sub">${durLabel(r.durVal,r.durUnit)}</div>`:''}</td>
-      <td><div class="td-main">${r.service}</div>${r.mileage?`<div class="td-sub">${Number(r.mileage).toLocaleString('en-CA')} km</div>`:''}</td>
+      <td><div class="td-main">${esc(r.vehicle)}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
+      <td><div class="td-main">${esc(r.service)}</div>${r.mileage?`<div class="td-sub">${Number(r.mileage).toLocaleString('en-CA')} km</div>`:''}</td>
       <td>${fmt(r.lastDate)}</td>
       <td>${c>0?'$'+c.toFixed(2):'—'}</td>
       <td>${c>0?taxPct+'% · $'+taxAmt.toFixed(2):'—'}</td>
       <td><strong>${tot>0?'$'+tot.toFixed(2):'—'}</strong></td>
-      <td>${r.attachmentUrl?`<a class="attachment-link" href="${r.attachmentUrl}" target="_blank">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
+      <td>${r.attachmentUrl?`<a class="attachment-link" href="${safeUrl(r.attachmentUrl)}" target="_blank" rel="noopener noreferrer">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
     </tr>`;
   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚗</div><p>No records match filters</p></div></td></tr>`;
 }
@@ -3882,13 +4076,13 @@ function renderReportHome(){
     const tot=h.totalOverride||c*(1+taxPct/100);
     const taxAmt=tot-c;
     return `<tr>
-      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${h.item}</div>${h.durVal?`<div class="td-sub">${durLabel(h.durVal,h.durUnit)}</div>`:''}</td>
-      <td><span class="type-badge type-general">${h.category}</span></td>
+      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.durVal?`<div class="td-sub">${esc(durLabel(h.durVal,h.durUnit))}</div>`:''}</td>
+      <td><span class="type-badge type-general">${esc(h.category)}</span></td>
       <td>${fmt(h.lastDate)}</td>
       <td>${c>0?'$'+c.toFixed(2):'—'}</td>
       <td>${c>0?taxPct+'% · $'+taxAmt.toFixed(2):'—'}</td>
       <td><strong>${tot>0?'$'+tot.toFixed(2):'—'}</strong></td>
-      <td>${h.attachmentUrl?`<a class="attachment-link" href="${h.attachmentUrl}" target="_blank">📎 View</a>`:'—'}</td>
+      <td>${h.attachmentUrl?`<a class="attachment-link" href="${safeUrl(h.attachmentUrl)}" target="_blank" rel="noopener noreferrer">📎 View</a>`:'—'}</td>
     </tr>`;
   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏡</div><p>No records match filters</p></div></td></tr>`;
 }
@@ -3898,28 +4092,54 @@ function renderReportCal(){
   const tFilter=document.getElementById('rfCalType')?.value||'';
   const from=document.getElementById('rfCalFrom')?.value||'';
   const to=document.getElementById('rfCalTo')?.value||'';
-  let data=[...events];
-  if(mFilter) data=data.filter(e=>e.member===mFilter);
+
+  // Expand recurring series into their individual occurrences so a weekly event
+  // that started months ago still shows up in a report for the current window.
+  // Without a range the expansion is unbounded, so default to a 1-year window.
+  const _rangeFrom = from || todayDs();
+  const _rangeTo   = to   || (()=>{ const d=new Date(); d.setFullYear(d.getFullYear()+1); return toDs(d); })();
+
+  let data=[];
+  events.forEach(e=>{
+    if (e.recurrence && e.recurrence.type) {
+      // Walk the range day by day, collecting matching occurrences (capped for safety)
+      const start = new Date(_rangeFrom+'T00:00:00');
+      const end   = new Date(_rangeTo+'T00:00:00');
+      let guard = 0;
+      for(let d=new Date(start); d<=end && guard<1000; d.setDate(d.getDate()+1), guard++){
+        const ds = toDs(d);
+        if (isRecurringOnDay(e, ds)) {
+          // Skip dates that have a standalone exception doc (edited occurrence)
+          const hasException = events.some(ex => ex.recurringParentId===e.id && ex.exceptionDate===ds);
+          if (!hasException) data.push({...e, date: ds, endDate: ds, _isRecurringInstance:true});
+        }
+      }
+    } else {
+      data.push(e);
+    }
+  });
+
+  if(mFilter) data=data.filter(e=>(e.members&&e.members.length?e.members.includes(mFilter):e.member===mFilter));
   if(tFilter) data=data.filter(e=>e.type===tFilter);
   if(from) data=data.filter(e=>e.date>=from);
   if(to)   data=data.filter(e=>e.date<=to);
-  data.sort((a,b)=>a.date.localeCompare(b.date));
+  data.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const byType={};
   data.forEach(e=>{byType[e.type]=(byType[e.type]||0)+1;});
   document.getElementById('calReportTotals').innerHTML=`
     <div class="report-total-card"><div class="report-total-label">Total Events</div><div class="report-total-val">${data.length}</div></div>
-    ${Object.entries(byType).map(([t,c])=>`<div class="report-total-card"><div class="report-total-label">${t}</div><div class="report-total-val">${c}</div></div>`).join('')}`;
+    ${Object.entries(byType).map(([t,c])=>`<div class="report-total-card"><div class="report-total-label">${esc(t)}</div><div class="report-total-val">${c}</div></div>`).join('')}`;
   document.getElementById('calReportBody').innerHTML=data.map(e=>`
     <tr>
       <td><div class="td-main">${fmt(e.date)}</div>${e.endDate&&e.endDate!==e.date?`<div class="td-sub">→ ${fmt(e.endDate)}</div>`:''}</td>
       <td>${e.time?fmtTime(e.time):'—'}</td>
-      <td><div class="td-main">${e.title}</div></td>
+      <td><div class="td-main">${esc(e.title)}</div></td>
       <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:.82rem">
-        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member||'—'}
+        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member?esc(e.member):'—'}
       </span></td>
-      <td><span class="type-badge type-${e.type}">${e.type}</span></td>
-      <td><div style="font-size:.79rem">${e.location||'—'}</div></td>
-      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:140px">${e.notes||'—'}</div></td>
+      <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
+      <td><div style="font-size:.79rem">${e.location?esc(e.location):'—'}</div></td>
+      <td><div style="font-size:.79rem;color:var(--gray-500);max-width:140px">${e.notes?esc(e.notes):'—'}</div></td>
     </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No events match filters</p></div></td></tr>`;
 }
 
