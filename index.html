@@ -1673,7 +1673,13 @@ function safeUrl(u){
 // ─── SAVE GUARDS & ERROR MESSAGES ────────────────────────────
 // Disables the modal's save button while a write is in flight, so an impatient
 // double-tap can't create two records (or fire two conflicting writes).
-const _savingModals = new Set();
+// Map<modalId, buttonElement> — the button captured at beginSave() time.
+// Previously this re-found the button by matching /save|add/i in its text,
+// which broke as soon as beginSave() changed the text to "⏳ Saving…" (that
+// string doesn't contain the substring "save"), so endSave() could never find
+// it again and the button stayed disabled forever. Holding a direct reference
+// removes the re-lookup entirely.
+const _savingModals = new Map();
 function _saveBtn(modalId){
   const m = document.getElementById(modalId);
   if (!m) return null;
@@ -1681,15 +1687,15 @@ function _saveBtn(modalId){
 }
 function beginSave(modalId){
   if (_savingModals.has(modalId)) return false;   // already saving — ignore
-  _savingModals.add(modalId);
   const b = _saveBtn(modalId);
+  _savingModals.set(modalId, b || null);
   if (b){ b.dataset.prevLabel = b.textContent; b.disabled = true; b.textContent = '⏳ Saving…'; }
   return true;
 }
 function endSave(modalId){
+  const b = _savingModals.get(modalId) || _saveBtn(modalId); // fallback just in case
   _savingModals.delete(modalId);
-  const b = _saveBtn(modalId);
-  if (b){ b.disabled = false; if (b.dataset.prevLabel) b.textContent = b.dataset.prevLabel; }
+  if (b){ b.disabled = false; if (b.dataset.prevLabel) { b.textContent = b.dataset.prevLabel; delete b.dataset.prevLabel; } }
 }
 
 function friendlyError(err){
@@ -1699,7 +1705,19 @@ function friendlyError(err){
   if (code === 'resource-exhausted') return 'the database quota was reached. Try again later.';
   if (code === 'not-found')          return 'that record no longer exists.';
   if (code === 'unauthenticated')    return 'your session expired. Please sign in again.';
+  if (code === 'timeout')            return 'the save took too long. Check your connection and try again.';
   return (err && err.message) ? err.message : 'unknown error.';
+}
+
+// Prevents a stalled network write from hanging forever with the Save button
+// stuck disabled. If the write hasn't settled within `ms`, this rejects — the
+// underlying Firestore write may still complete later in the background, but
+// the UI stops waiting and lets the user retry rather than being stranded.
+function withTimeout(promise, ms = 15000){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject({ code: 'timeout' }), ms)),
+  ]);
 }
 
 // Tap the dark overlay backdrop to close any modal (mobile UX)
@@ -3261,8 +3279,8 @@ async function saveAuto() {
       updatedBy:auth.currentUser?.displayName||'',
       updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
     };
-    if(id) await db.collection('autoRecords').doc(id).set(rec, { merge: true });
-    else   await db.collection('autoRecords').add(rec);
+    if(id) await withTimeout(db.collection('autoRecords').doc(id).set(rec, { merge: true }));
+    else   await withTimeout(db.collection('autoRecords').add(rec));
     closeModal('autoModal'); toast('✅ Service record saved!');
   } catch (err) {
     console.error('saveAuto failed:', err);
@@ -3399,8 +3417,8 @@ async function saveHome(){
       updatedBy:auth.currentUser?.displayName||'',
       updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
     };
-    if(id) await db.collection('homeItems').doc(id).set(rec, { merge: true });
-    else   await db.collection('homeItems').add(rec);
+    if(id) await withTimeout(db.collection('homeItems').doc(id).set(rec, { merge: true }));
+    else   await withTimeout(db.collection('homeItems').add(rec));
     closeModal('homeModal'); toast('✅ Home item saved!');
   } catch (err) {
     console.error('saveHome failed:', err);
@@ -3718,14 +3736,14 @@ async function saveEvent(){
         exceptionDate:     instanceDate,
         recurrence:        null,
       };
-      await db.collection('events').add(exceptionRec);
+      await withTimeout(db.collection('events').add(exceptionRec));
       // Mark this date as an exception on the parent so the series skips it
       const parentSnap = await db.collection('events').doc(id).get();
       const parentData = parentSnap.data() || {};
       const existingExceptions = (parentData.recurrence?.exceptions) || [];
-      await db.collection('events').doc(id).update({
+      await withTimeout(db.collection('events').doc(id).update({
         'recurrence.exceptions': [...new Set([...existingExceptions, instanceDate])],
-      });
+      }));
       closeModal('calModal'); toast('✅ This occurrence updated!');
       return;
     }
@@ -3738,8 +3756,8 @@ async function saveEvent(){
       // Explicitly clear recurrence when removing it
       rec.recurrence = null;
     }
-    if (id) await db.collection('events').doc(id).set(rec, { merge: true });
-    else    await db.collection('events').add(rec);
+    if (id) await withTimeout(db.collection('events').doc(id).set(rec, { merge: true }));
+    else    await withTimeout(db.collection('events').add(rec));
     closeModal('calModal'); toast('✅ Event saved!');
   } catch (err) {
     console.error('saveEvent failed:', err);
@@ -4146,6 +4164,27 @@ function renderReportCal(){
 // ─── MODAL ────────────────────────────────────────
 let _modalScrollY = 0;
 function openModal(id){
+  // Defensive reset: if a previous save on this modal never completed (e.g. the
+  // network write hung, or the tab was backgrounded mid-save on a phone), the
+  // Save button could be left disabled/"Saving…" forever. Opening the modal
+  // again always self-heals that, regardless of what caused it.
+  if (typeof _savingModals !== 'undefined' && _savingModals.has(id)) {
+    const stuckBtn = _savingModals.get(id);
+    _savingModals.delete(id);
+    if (stuckBtn) {
+      stuckBtn.disabled = false;
+      if (stuckBtn.dataset.prevLabel) { stuckBtn.textContent = stuckBtn.dataset.prevLabel; delete stuckBtn.dataset.prevLabel; }
+    }
+  }
+  // Belt-and-braces: also reset any button matching the save-button pattern,
+  // in case it lost its dataset (e.g. a re-render replaced the element).
+  const _sb = (typeof _saveBtn === 'function') ? _saveBtn(id) : null;
+  const _defaultLabel = { calModal: '💾 Save Event', autoModal: '💾 Save Record', homeModal: '💾 Save Item' }[id];
+  if (_sb) {
+    _sb.disabled = false;
+    if (_sb.dataset.prevLabel) { _sb.textContent = _sb.dataset.prevLabel; delete _sb.dataset.prevLabel; }
+    else if (/^⏳/.test(_sb.textContent) && _defaultLabel) { _sb.textContent = _defaultLabel; }
+  }
   // Save scroll position then lock body — preserves position without viewport jump
   _modalScrollY = window.scrollY || window.pageYOffset || 0;
   document.body.style.top = `-${_modalScrollY}px`;
@@ -4168,7 +4207,17 @@ function closeModal(id){
     document.getElementById(editMap[id]).dataset.existingUrl='';
     document.getElementById(editMap[id]).dataset.existingUrls='[]';
   }
-  document.getElementById(id).querySelectorAll('input:not([type=hidden]),textarea').forEach(el=>el.value='');
+  // Text/date/number/etc. inputs reset via .value; checkboxes and radios store
+  // their state in .checked, not .value — setting .value='' on a checkbox
+  // actually overwrites its value ATTRIBUTE (e.g. wiping "ANI Thomas" to ""),
+  // corrupting the member picker for the next time this modal opens via any
+  // entry point that doesn't rebuild it (like the top-nav "+ Add" buttons).
+  document.getElementById(id).querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),textarea').forEach(el=>el.value='');
+  document.getElementById(id).querySelectorAll('input[type=checkbox],input[type=radio]').forEach(el=>el.checked=false);
+  // Rebuild the member/notify picker from scratch so it can never carry stale
+  // checked-state or corrupted values into the next open, regardless of which
+  // button opens the modal next.
+  if (id === 'calModal' && typeof buildEventMemberPicker === 'function') buildEventMemberPicker([], []);
   ['aHstBox','hHstBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
   ['aKmBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
   ['aFilePreview','hFilePreview','aExistingFile','hExistingFile'].forEach(pid=>{const p=document.getElementById(pid);if(p)p.innerHTML='';});
