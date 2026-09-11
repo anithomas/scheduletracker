@@ -28,7 +28,11 @@ messagingInstance.onBackgroundMessage(function(payload) {
   });
 });
 
-const CACHE = 'tracker-v2';
+// Bump this on every deploy that changes cached behavior. Changing this value
+// changes the SW script's bytes, which is what makes browsers notice there's
+// a new worker to install — an unchanged sw.js can otherwise sit unnoticed
+// for up to a day even when index.html has changed.
+const CACHE = 'tracker-v3';
 const PRECACHE = ['/'];
 
 self.addEventListener('install', e => {
@@ -44,9 +48,17 @@ self.addEventListener('activate', e => {
       Promise.all(
         keys.filter(k => k !== CACHE).map(k => caches.delete(k))
       )
-    )
+    ).then(() => self.clients.claim())
+     // Tell every open tab a new version just took over, so the app can
+     // prompt for (or silently do) a reload instead of running stale JS
+     // indefinitely in a tab that's never manually refreshed.
+     .then(() => self.clients.matchAll({ type: 'window' }))
+     .then(clientsList => clientsList.forEach(c => c.postMessage({ type: 'SW_UPDATED' })))
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', e => {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', e => {
@@ -63,9 +75,18 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Network-first for everything else — fall back to cache if offline
+  // Network-first for everything else — fall back to cache if offline.
+  // Critically, the HTML document (navigations, and '/' itself) is fetched
+  // with cache:'no-store' so the browser's own HTTP cache can never hand
+  // back a stale copy underneath this "network-first" logic — without this,
+  // fetch() here would silently honour ordinary HTTP caching (e.g. GitHub
+  // Pages' CDN headers) and this handler's cache-fallback code would never
+  // even run, because the *first* attempt was already stale.
+  const isDocument = e.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
+  const fetchOptions = isDocument ? { cache: 'no-store' } : {};
+
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, fetchOptions)
       .then(res => {
         // Cache a fresh copy of the page
         if (res.ok && url.hostname === self.location.hostname) {
