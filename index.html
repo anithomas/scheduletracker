@@ -216,7 +216,7 @@
     .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(15,107,110,.45);}
     .btn-ghost{background:var(--gray-100);color:var(--gray-700);}
     .btn-ghost:hover{background:var(--gray-200);}
-    .btn-success{background:linear-gradient(135deg,#4c6b4c,#4c6b4c);color:#fff;}
+    .btn-success{background:linear-gradient(135deg,var(--sage-deep),#3f5a3f);color:#fff;}
     .btn-icon{width:36px;height:36px;padding:0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;border:none;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
     .btn-edit{background:#e3efef;color:var(--blue);}
     .btn-edit:hover{background:#e3efef;}
@@ -243,7 +243,7 @@
     .hst-total-input:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(10,79,82,.12);}
     .hst-divider{height:1px;background:rgba(10,79,82,.15);}
     /* KM BOX */
-    .km-box{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);border:1px solid #7fa37f;border-radius:14px;padding:14px 18px;margin:10px 0;display:none;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(127,163,127,.08);}
+    .km-box{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);border:1px solid #7fa37f;border-radius:14px;padding:14px 18px;margin:10px 0;display:none;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(127,163,127,.08);}
     .km-box.visible{display:flex;}
     .km-item{font-size:.82rem;color:var(--gray-600);display:flex;align-items:center;gap:4px;}
     .km-item strong{color:var(--gray-800);}
@@ -274,9 +274,9 @@
     @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
     .modal-title{font-size:1.05rem;font-weight:800;color:var(--gray-900);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
     .modal-title .title-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;}
-    .title-icon.auto{background:linear-gradient(135deg,#e3efef,#e3efef);}
-    .title-icon.home{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);}
-    .title-icon.cal{background:linear-gradient(135deg,#f9efd9,#f9efd9);}
+    .title-icon.auto{background:linear-gradient(135deg,#e3efef,#cde3e2);}
+    .title-icon.home{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);}
+    .title-icon.cal{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
     .form-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;margin-bottom:12px;}
     .form-group label{display:block;font-size:.73rem;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;}
     .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:.875rem;font-family:inherit;outline:none;color:var(--gray-800);background:var(--gray-50);transition:border .15s,background .15s,box-shadow .15s;}
@@ -545,9 +545,9 @@
         transition:transform .15s,box-shadow .15s;
         touch-action:manipulation;
       }
-      #fbe9e3:active{transform:scale(.92);box-shadow:0 2px 8px rgba(10,79,82,.3);}
-      #fbe9e3.fab-hidden{display:none !important;}
-      .role-viewer #fbe9e3,.role-denied #fab{display:none !important;}
+      #fab:active{transform:scale(.92);box-shadow:0 2px 8px rgba(10,79,82,.3);}
+      #fab.fab-hidden{display:none !important;}
+      .role-viewer #fab,.role-denied #fab{display:none !important;}
 
       /* Stats */
       .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
@@ -613,13 +613,13 @@
     .about-feature-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--gray-100);padding:22px 20px;display:flex;gap:15px;align-items:flex-start;transition:box-shadow .2s,transform .2s;}
     .about-feature-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);}
     .about-feature-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
-    .about-feature-icon.cal{background:linear-gradient(135deg,#e3efef,#e3efef);}
-    .about-feature-icon.auto{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);}
-    .about-feature-icon.home{background:linear-gradient(135deg,#f9efd9,#f9efd9);}
-    .about-feature-icon.rep{background:linear-gradient(135deg,#f9efd9,#f9efd9);}
-    .about-feature-icon.sec{background:linear-gradient(135deg,#fbe9e3,#fbe9e3);}
-    .about-feature-icon.mob{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);}
-    .about-feature-icon.apk{background:linear-gradient(135deg,#fbe9e3,#fbe9e3);}
+    .about-feature-icon.cal{background:linear-gradient(135deg,#e3efef,#cde3e2);}
+    .about-feature-icon.auto{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);}
+    .about-feature-icon.home{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
+    .about-feature-icon.rep{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
+    .about-feature-icon.sec{background:linear-gradient(135deg,#fbe9e3,#f6d4c7);}
+    .about-feature-icon.mob{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);}
+    .about-feature-icon.apk{background:linear-gradient(135deg,#fbe9e3,#f6d4c7);}
     .about-feature-icon.adm{background:linear-gradient(135deg,#f3ecdd,#e6dcc8);}
     .about-feature-text h4{font-size:.9rem;font-weight:700;color:var(--gray-900);margin-bottom:4px;}
     .about-feature-text p{font-size:.79rem;color:var(--gray-500);line-height:1.55;}
@@ -658,12 +658,12 @@
     .config-card-header{padding:18px 22px 14px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:10px;}
     .config-card-title{font-size:.95rem;font-weight:800;color:var(--gray-900);display:flex;align-items:center;gap:9px;}
     .config-card-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
-    .ci-blue{background:linear-gradient(135deg,#e3efef,#e3efef);}
-    .ci-green{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);}
-    .ci-purple{background:linear-gradient(135deg,#f9efd9,#f9efd9);}
-    .ci-amber{background:linear-gradient(135deg,#f9efd9,#f9efd9);}
-    .ci-rose{background:linear-gradient(135deg,#fbe9e3,#fbe9e3);}
-    .ci-teal{background:linear-gradient(135deg,#eaf1e8,#eaf1e8);}
+    .ci-blue{background:linear-gradient(135deg,#e3efef,#cde3e2);}
+    .ci-green{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);}
+    .ci-purple{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
+    .ci-amber{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
+    .ci-rose{background:linear-gradient(135deg,#fbe9e3,#f6d4c7);}
+    .ci-teal{background:linear-gradient(135deg,#eaf1e8,#d7e6d3);}
     .config-card-body{padding:16px 20px;}
 
     .vehicle-config-list{display:flex;flex-direction:column;gap:10px;}
@@ -773,6 +773,95 @@
     .add-user-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
     .add-user-row input{flex:1;min-width:160px;}
     .rbac-note{font-size:.76rem;color:var(--gray-500);margin-bottom:12px;line-height:1.5;}
+    /* ── POLISH: mathtest alignment + mobile fixes (overrides above) ── */
+    #toast{opacity:0;visibility:hidden;transition:transform .3s ease,opacity .3s ease,visibility .3s;}
+    #toast.show{opacity:1;visibility:visible;}
+
+    /* #fab lives outside #appShell, so the old .role-viewer #fab rule never
+       matched: the + showed on the sign-in / access-denied screens and for
+       read-only viewers. Key off the shell's state instead. */
+    body:not(:has(#appShell.app-visible)) #fab,
+    body:has(#appShell.role-viewer) #fab,
+    body:has(#appShell.role-denied) #fab{display:none!important;}
+
+    .header-brand{min-width:0;}
+    .header-brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .avatar{object-fit:cover;}
+    .profile-btn,.sign-out-btn{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:6px 13px;border-radius:999px;font:600 .78rem/1.2 var(--font-body);cursor:pointer;transition:background .15s;}
+    .profile-btn:hover,.sign-out-btn:hover{background:rgba(255,255,255,.22);}
+    .hdr-icon,.nl-short{display:none;}
+    nav button.active{color:var(--teal-deep);}
+
+    /* auto-fill left empty tracks on wide screens; auto-fit stretches the 4 stat cards */
+    @media(min-width:769px){.stats-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}}
+    .badge{white-space:nowrap;}
+
+    .cal-grid{grid-template-columns:repeat(7,minmax(0,1fr));}
+    .cal-day{min-width:0;}
+    .cal-day.other-month{opacity:1;background:transparent;border-color:transparent;}
+    .cal-day.other-month:hover{background:transparent;border-color:transparent;}
+    .cal-day.past-day{background:var(--card);}
+    .cal-day.past-day .day-num{color:var(--ink-soft);opacity:.5;}
+    .cal-day.today{background:var(--teal-tint);}
+    /* Event chips: tint + deep text of the member colour (mathtest pill style).
+       White text on gold/sage/coral fills was below 3:1 contrast. */
+    .cal-event[style*="--c"]{background:color-mix(in srgb,var(--c) 18%,var(--card));color:color-mix(in srgb,var(--c) 62%,#000);border-left:3px solid var(--c);border-radius:5px;}
+    .cal-controls .rbac-add{margin-left:auto!important;}
+
+    .about-hero{background:linear-gradient(135deg,var(--teal) 0%,var(--teal-deep) 100%);}
+
+    #accessDenied{background:var(--parchment);padding:20px;}
+    .denied-card{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;border:1px solid var(--line);border-top:4px solid var(--coral);box-shadow:var(--shadow-lg);}
+    .denied-card h2{color:var(--teal-deep);font-family:var(--font-head);}
+    .denied-card p{color:var(--ink-soft);margin-bottom:14px;}
+    .denied-email{display:inline-block;font:600 .84rem var(--font-mono);color:var(--coral-deep);background:var(--coral-tint);border-radius:999px;padding:6px 14px;margin-bottom:14px;word-break:break-all;}
+    .denied-email:empty{display:none;}
+    .denied-card .denied-hint{font-size:.8rem;margin-bottom:22px;}
+    .denied-card .btn-ghost{background:var(--teal);color:#fff;}
+    .denied-card .btn-ghost:hover{background:var(--teal-deep);}
+
+    @media(max-width:640px){
+      .hdr-label{display:none;}
+      .hdr-icon{display:inline;}
+      .profile-btn,.sign-out-btn{padding:7px 10px;font-size:.92rem;}
+      .header-right,.user-chip{gap:6px;}
+
+      /* Six tabs fit without sideways scrolling: icon over short label */
+      nav{overflow-x:visible;padding:0 4px;}
+      nav button{flex:1 1 0;min-width:0;flex-direction:column;gap:1px;padding:7px 2px 5px;font-size:.66rem;}
+      nav button .nav-icon{font-size:1.05rem;}
+      nav button.active{background:var(--teal-tint);}
+      .nl-long{display:none;}
+      .nl-short{display:inline;}
+
+      /* The floating + button already adds events on phones */
+      .cal-controls .rbac-add{display:none!important;}
+      .cal-controls{justify-content:space-between;}
+
+      /* Day cells are too narrow for text chips: show color bars, details live in Upcoming */
+      .cal-event,.cal-event[style*="--c"]{font-size:0;line-height:0;height:6px;padding:0;margin-top:3px;border-radius:3px;border-left:0;background:var(--c,var(--teal));}
+
+      /* Wide tables become stacked cards (labels set by labelTable()) */
+      .table-wrap:has(table.rt){overflow:visible;}
+      table.rt thead{display:none;}
+      table.rt,table.rt tbody,table.rt tr{display:block;width:100%;}
+      table.rt tr{background:var(--parchment);border:1px solid var(--line);border-radius:14px;padding:8px 14px;margin-bottom:10px;}
+      table.rt tbody tr:hover td{background:transparent;}
+      table.rt td{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:2px;align-items:center;justify-items:end;padding:7px 0;border-bottom:1px dashed var(--line);text-align:right;font-size:.82rem;}
+      table.rt td > *{grid-column:2;}
+      table.rt td.rt-empty{display:none;}
+      table.rt td:last-child{border-bottom:none;}
+      table.rt td::before{content:attr(data-label);grid-column:1;grid-row:1 / span 4;justify-self:start;font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);text-align:left;}
+      table.rt td:first-child{display:block;justify-items:normal;text-align:left;border-bottom:1px solid var(--line);padding:4px 0 9px;}
+      table.rt td:first-child::before{display:none;}
+      table.rt td:first-child .td-main{font-family:var(--font-head);font-size:1.02rem;color:var(--teal-deep);}
+      table.rt td[data-label=""]{display:flex;justify-content:flex-end;}
+      table.rt td[data-label=""]::before{display:none;}
+      table.rt td.col-odo,table.rt td.col-progress{display:none;}
+      table.rt td[colspan]{display:block;justify-items:normal;text-align:center;border:none;}
+      table.rt td[colspan]::before{display:none;}
+      table.rt tr:has(td[colspan]){background:transparent;border:none;}
+    }
   </style>
 </head>
 <body>
@@ -808,8 +897,10 @@
   <div class="denied-card">
     <div class="denied-icon">🚫</div>
     <h2>Access Denied</h2>
-    <p id="deniedMsg">Your account has been blocked by an administrator.</p>
-    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="auth.signOut()">← Sign out</button>
+    <p id="deniedMsg">This Google account isn't on the household access list.</p>
+    <div class="denied-email" id="deniedEmail"></div>
+    <p class="denied-hint">Ask a household admin to add this email under <strong>Admin → Family Members &amp; Access</strong>, or sign in with a different account.</p>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="auth.signOut()">← Use a different account</button>
   </div>
 </div>
 
@@ -826,19 +917,19 @@
         <span id="syncStatus">Live</span>
       </div>
       <div class="user-chip">
-        <img class="avatar" id="userAvatar" src="" alt="" />
+        <img class="avatar" id="userAvatar" alt="" referrerpolicy="no-referrer" style="display:none" onerror="this.style.display='none'" />
         <span class="user-name" id="userName"></span>
         <span class="role-badge" id="roleBadge" style="display:none"></span>
-        <button class="btn btn-sm" onclick="openMyProfile()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:4px 10px;font-size:.75rem;border-radius:8px;cursor:pointer" title="My notifications & device">🔔 My Profile</button>
-        <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+        <button class="profile-btn" onclick="openMyProfile()" title="My notifications & device" aria-label="My profile">🔔<span class="hdr-label"> My Profile</span></button>
+        <button class="sign-out-btn" onclick="signOut()" aria-label="Sign out"><svg class="hdr-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="hdr-label">Sign out</span></button>
       </div>
     </div>
   </header>
 
   <nav>
     <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
-    <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> Auto Maintenance</button>
-    <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> Home Schedules</button>
+    <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> <span class="nl-long">Auto Maintenance</span><span class="nl-short">Auto</span></button>
+    <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> <span class="nl-long">Home Schedules</span><span class="nl-short">Home</span></button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
     <button onclick="showSection('about',this)"><span class="nav-icon">✨</span> About</button>
@@ -2904,6 +2995,11 @@ auth.onAuthStateChanged(async user => {
     await loadSettingsForAuth();
     const role = await checkUserAccess(user);
     if (role === 'denied') {
+      const listed = (appConfig.authorizedUsers||[]).some(u => (u.email||'').toLowerCase() === (user.email||'').toLowerCase());
+      document.getElementById('deniedMsg').textContent = listed
+        ? 'Your access has been turned off by a household admin.'
+        : "This Google account isn't on the household access list.";
+      document.getElementById('deniedEmail').textContent = user.email || '';
       document.getElementById('appShell').classList.remove('app-visible');
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('accessDenied').style.display = 'flex';
@@ -2912,7 +3008,8 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').classList.add('app-visible');
     document.getElementById('userName').textContent = user.displayName?.split(' ')[0]||user.email;
-    document.getElementById('userAvatar').src = user.photoURL||'';
+    const av = document.getElementById('userAvatar');
+    if (user.photoURL) { av.src = user.photoURL; av.style.display = ''; } else { av.removeAttribute('src'); av.style.display = 'none'; }
     applyRBAC(role);
     startListeners();
     loadSettings();
@@ -2999,11 +3096,41 @@ function costWithHst(cost, taxRate) {
   const pct = Math.round(rate * 100);
   return `<div class="td-main">${fmtCost(total)}</div><div class="td-sub">${fmtCost(c)} + ${pct}% tax</div>`;
 }
+let _toastTimer=null;
 function toast(msg) {
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2500);
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
 }
+function memberLabel(m){
+  const s=String(m||'').toLowerCase().trim();
+  return (s==='all'||s==='family')?'All/Family':String(m||'');
+}
+
+// On phones, wide data tables (5+ columns) collapse into stacked cards via CSS.
+// Each cell gets its column header as data-label so the card can show
+// "NEXT DUE  10/27/2026" rows instead of forcing a sideways scroll.
+function labelTable(table){
+  const heads=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+  if(heads.length<5) return;
+  table.classList.add('rt');
+  table.querySelectorAll('tbody tr').forEach(tr=>{
+    [...tr.children].forEach((td,i)=>{
+      if(td.hasAttribute('colspan')) return;
+      td.dataset.label=heads[i]||'';
+      const txt=td.textContent.trim();
+      td.classList.toggle('rt-empty', i>0 && heads[i]!=='' && (txt==='—'||txt===''));
+    });
+  });
+}
+const _rtObserver=new MutationObserver(muts=>{
+  new Set(muts.map(m=>m.target.closest('table')).filter(Boolean)).forEach(labelTable);
+});
+document.querySelectorAll('.table-wrap table').forEach(t=>{
+  labelTable(t);
+  if(t.tBodies[0]) _rtObserver.observe(t.tBodies[0],{childList:true});
+});
 function memberColor(member) {
   if(!member) return 'var(--gray-400)';
   const m=String(member).toLowerCase().trim();
@@ -3242,7 +3369,7 @@ function renderAuto() {
       <td><div class="td-main">${esc(r.service)}</div></td>
       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
-      <td><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
+      <td class="col-odo"><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
       <td>${costWithHst(r.cost, r.taxRate)}</td>
       <td>${statusBadge(r.nextDate,r.completed)}</td>
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
@@ -3615,7 +3742,7 @@ function renderCalendar(){
         // For multi-member: show a gradient-like bar using first member color, with tiny dots for extras
         const extraDots=mems.slice(1).map(m=>`<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${memberColor(m)};margin-left:2px;vertical-align:middle;border:1px solid rgba(255,255,255,.7)"></span>`).join('');
         const isEventPast=(e.endDate||e.date)<todayStr;
-        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="background:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${escJs(e.id)}','${escJs(instDate)}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${esc(e.title)}${extraDots}</div>`;
+        return `<div class="cal-event ${mClass(e)} ${rangeClass}${isEventPast?' past-event':''}" style="--c:${mColor(e)};cursor:pointer" onclick="event.stopPropagation();editEvent('${escJs(e.id)}','${escJs(instDate)}')">${e.recurrence&&e.recurrence.type?'🔁 ':''}${isStart&&e.time?fmtTime(e.time)+' ':''}${esc(e.title)}${extraDots}</div>`;
       }).join('')}
       ${hidden.length?`<div class="more-events">+${hidden.length} more…</div>`:''}
       ${dayEvts.length?`<div class="cal-tooltip">${tooltipRows}</div>`:''}
@@ -3653,7 +3780,7 @@ function renderCalendar(){
       </td>
       <td><div class="td-main">${esc(e.title)}</div>${e.location?`<div class="td-sub">📍 ${esc(e.location)}</div>`:''}</td>
       <td><span style="display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.82rem;flex-wrap:wrap">
-        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${esc(m)}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
+        ${(e.members&&e.members.length?e.members:[e.member]).filter(Boolean).map(m=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${memberColor(m)}"></span>${esc(memberLabel(m))}</span>`).join('<span style="color:var(--gray-300);font-weight:400"> · </span>')||'—'}
       </span></td>
       <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
       <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes?esc(e.notes):'—'}</div></td>
@@ -4014,7 +4141,7 @@ function renderSummary(){
   events.forEach(e=>{const m=e.member||'Unknown';byMember[m]=(byMember[m]||0)+1;});
   const memberRows=Object.entries(byMember).sort((a,b)=>b[1]-a[1]).map(([m,c])=>`
     <tr><td><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600">
-      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${esc(m)}
+      <span style="width:9px;height:9px;border-radius:50%;background:${memberColor(m)}"></span>${esc(memberLabel(m))}
     </span></td><td><div class="td-main">${c}</div></td></tr>`).join('');
   // Dynamic vehicle spend rows
   const vehicleRows=appVehicles.map(v=>{
@@ -4176,7 +4303,7 @@ function renderReportCal(){
       <td>${e.time?fmtTime(e.time):'—'}</td>
       <td><div class="td-main">${esc(e.title)}</div></td>
       <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:.82rem">
-        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member?esc(e.member):'—'}
+        <span style="width:8px;height:8px;border-radius:50%;background:${memberColor(e.member)}"></span>${e.member?esc(memberLabel(e.member)):'—'}
       </span></td>
       <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
       <td><div style="font-size:.79rem">${e.location?esc(e.location):'—'}</div></td>
