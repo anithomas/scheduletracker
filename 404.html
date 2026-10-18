@@ -5,13 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>404 — Thomas Family Tracker</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 45%, #7c3aed 80%, #db2777 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f6b6e 0%, #0a4f52 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -27,7 +25,7 @@
       content: '';
       position: absolute;
       width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(99,102,241,.35) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(10,79,82,.35) 0%, transparent 70%);
       top: -150px; right: -150px;
       border-radius: 50%;
     }
@@ -50,7 +48,7 @@
       max-width: 540px;
       width: 100%;
       z-index: 1;
-      box-shadow: 0 32px 80px rgba(0,0,0,.35);
+      box-shadow: 0 32px 80px rgba(43,58,58,.35);
     }
 
     .emoji-stack {
@@ -71,12 +69,13 @@
       line-height: 1;
       letter-spacing: -4px;
       margin: 8px 0 4px;
-      text-shadow: 0 4px 30px rgba(0,0,0,.4);
+      text-shadow: 0 4px 30px rgba(43,58,58,.4);
     }
 
-    .code span { color: #fde68a; }
+    .code span { color: #f9efd9; }
 
     .headline {
+      font-family: Georgia, serif;
       font-size: 1.4rem;
       font-weight: 700;
       color: rgba(255,255,255,.95);
@@ -97,7 +96,7 @@
     }
 
     .error-log {
-      background: rgba(0,0,0,.25);
+      background: rgba(43,58,58,.25);
       border: 1px solid rgba(255,255,255,.1);
       border-radius: 12px;
       padding: 16px 20px;
@@ -109,27 +108,27 @@
       line-height: 1.8;
     }
 
-    .error-log .ok   { color: #4ade80; }
-    .error-log .warn { color: #fbbf24; }
-    .error-log .err  { color: #f87171; }
+    .error-log .ok   { color: #7fa37f; }
+    .error-log .warn { color: #d9a441; }
+    .error-log .err  { color: #e76f51; }
 
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
       background: #fff;
-      color: #1e293b;
+      color: #2b3a3a;
       text-decoration: none;
       font-weight: 700;
       font-size: .95rem;
       padding: 14px 28px;
       border-radius: 14px;
-      box-shadow: 0 4px 20px rgba(0,0,0,.25);
+      box-shadow: 0 4px 20px rgba(43,58,58,.25);
       transition: transform .15s, box-shadow .15s;
     }
     .btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(0,0,0,.35);
+      box-shadow: 0 8px 30px rgba(43,58,58,.35);
     }
 
     .footer-note {
