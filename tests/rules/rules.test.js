@@ -38,14 +38,29 @@ const CONFIG = {
   },
 };
 
+// rules-unit-testing caches one app per uid, and ctx.firestore()/ctx.storage()
+// may only be called once per app — so memoize contexts and their clients.
+// Variants (unverified, email override) get their own uid so they get their
+// own app with the right token.
+const ctxCache = new Map();
+const clientCache = new WeakMap();
 const as = (who, { verified = true, emailOverride } = {}) => {
   const u = USERS[who];
-  return env.authenticatedContext(u.uid, {
-    email: emailOverride ?? u.email, email_verified: verified,
-  });
+  const uid = u.uid + (verified ? '' : '-unverified') + (emailOverride ? '-alt' : '');
+  if (!ctxCache.has(uid)) {
+    ctxCache.set(uid, env.authenticatedContext(uid, {
+      email: emailOverride ?? u.email, email_verified: verified,
+    }));
+  }
+  return ctxCache.get(uid);
 };
-const db = (ctx) => ctx.firestore();
-const st = (ctx) => ctx.storage();
+const client = (ctx, kind) => {
+  let c = clientCache.get(ctx);
+  if (!c) { c = {}; clientCache.set(ctx, c); }
+  return c[kind] ??= kind === 'fs' ? ctx.firestore() : ctx.storage();
+};
+const db = (ctx) => client(ctx, 'fs');
+const st = (ctx) => client(ctx, 'st');
 
 before(async () => {
   env = await initializeTestEnvironment({
@@ -59,16 +74,17 @@ beforeEach(async () => {
   await env.clearFirestore();
   await env.clearStorage();
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'settings/config'), CONFIG);
-    await setDoc(doc(ctx.firestore(), 'events/e1'), { title: 'Dentist', date: '2026-10-20' });
-    await uploadBytes(ref(ctx.storage(), 'receipts/u-contrib/auto_1_receipt.png'),
+    const fs = ctx.firestore(), s = ctx.storage();
+    await setDoc(doc(fs, 'settings/config'), CONFIG);
+    await setDoc(doc(fs, 'events/e1'), { title: 'Dentist', date: '2026-10-20' });
+    await uploadBytes(ref(s, 'receipts/u-contrib/auto_1_receipt.png'),
       new Uint8Array([1, 2, 3]), { contentType: 'image/png' });
   });
 });
 
 // ---------- settings/config ----------
 test('signed-out users cannot read config', async () => {
-  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'settings/config')));
+  await assertFails(getDoc(doc(db(env.unauthenticatedContext()), 'settings/config')));
 });
 test('strangers and denied users cannot read config or data', async () => {
   for (const who of ['stranger', 'denied']) {
@@ -88,7 +104,7 @@ test('all members can read config', async () => {
   }
 });
 test('nobody can create config from the app (no bootstrap-to-admin)', async () => {
-  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'settings/config')));
+  await env.withSecurityRulesDisabled(async (ctx) => { await deleteDoc(doc(ctx.firestore(), 'settings/config')); });
   await assertFails(setDoc(doc(db(as('stranger')), 'settings/config'), {
     accessRoles: { 'someone@example.com': 'admin' },
   }));
