@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// Family Household Tracker — Cloud Storage rules for receipt/attachment uploads.
+// Roles come from the same settings/config.accessRoles map as firestore.rules.
+// Note: files are linked in records by download URL, and anyone holding a
+// download URL can open that file; these rules govern SDK access and uploads.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function myRole() {
+      return request.auth != null && request.auth.token.email_verified == true
+        ? firestore.get(/databases/(default)/documents/settings/config).data
+            .get('accessRoles', {})
+            .get(request.auth.token.email.lower(), 'none')
+        : 'none';
+    }
+
+    // Uploads land at receipts/{uid}/{auto|home}_{timestamp}_{filename}.
+    match /receipts/{uid}/{fileName} {
+      allow read: if myRole() in ['admin', 'contributor', 'viewer'];
+      allow create, update: if request.auth.uid == uid
+        && myRole() in ['admin', 'contributor']
+        && request.resource.size <= 25 * 1024 * 1024           // matches MAX_FILE_BYTES
+        && !request.resource.contentType.matches('text/html.*|.*javascript.*');
+      allow delete: if myRole() == 'admin';
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -743,7 +743,8 @@
     /* ── RBAC VISIBILITY ── */
     .role-viewer .rbac-add,
     .role-viewer .btn-edit,
-    .role-viewer .btn-del  { display:none!important; }
+    .role-viewer .btn-del,
+    .role-viewer .btn-done { display:none!important; }
     .role-contributor .rbac-admin,
     .role-viewer      .rbac-admin { display:none!important; }
 
@@ -776,6 +777,8 @@
     /* ── POLISH: mathtest alignment + mobile fixes (overrides above) ── */
     #toast{opacity:0;visibility:hidden;transition:transform .3s ease,opacity .3s ease,visibility .3s;}
     #toast.show{opacity:1;visibility:visible;}
+    #toast{display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);}
+    .toast-action{background:none;border:0;color:var(--gold-tint);font:700 .85rem var(--font-body);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:4px 2px;white-space:nowrap;}
 
     /* #fab lives outside #appShell, so the old .role-viewer #fab rule never
        matched: the + showed on the sign-in / access-denied screens and for
@@ -897,7 +900,7 @@
   <div class="denied-card">
     <div class="denied-icon">🚫</div>
     <h2>Access Denied</h2>
-    <p id="deniedMsg">This Google account isn't on the household access list.</p>
+    <p id="deniedMsg">This Google account doesn't have access to this household tracker.</p>
     <div class="denied-email" id="deniedEmail"></div>
     <p class="denied-hint">Ask a household admin to add this email under <strong>Admin → Family Members &amp; Access</strong>, or sign in with a different account.</p>
     <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="auth.signOut()">← Use a different account</button>
@@ -1988,6 +1991,27 @@ function applySettings(){
   const hTax=document.getElementById('hTaxRate'); if(hTax&&!hTax.dataset.userSet) hTax.value=appConfig.defaultTaxRate;
 }
 
+// Lowercased email -> role map. firestore.rules / storage.rules look up the
+// signed-in user's role here, so it must stay in sync with authorizedUsers.
+function buildAccessRoles(users){
+  const map={};
+  (users||[]).forEach(u=>{ const e=String(u.email||'').trim().toLowerCase(); if(e) map[e]=u.role||'viewer'; });
+  return map;
+}
+function sameAccessRoles(a,b){
+  const ka=Object.keys(a||{}), kb=Object.keys(b||{});
+  return ka.length===kb.length && ka.every(k=>a[k]===(b||{})[k]);
+}
+
+// Self-service writes (own devices / notification prefs) touch only `members`,
+// which is all non-admins are allowed to change under firestore.rules.
+async function saveMembersOnly(){
+  await db.collection('settings').doc('config').update({
+    members:appMembers,
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 async function saveSettings(){
   await db.collection('settings').doc('config').set({
     appName:appConfig.appName,
@@ -2001,6 +2025,7 @@ async function saveSettings(){
     eventTypes:eventTypes,
     authorizedUsers:appConfig.authorizedUsers||[],
     authorizedEmails:(appConfig.authorizedUsers||[]).map(u=>u.email).filter(Boolean),
+    accessRoles:buildAccessRoles(appConfig.authorizedUsers),
     reminderSettings:appConfig.reminderSettings||{enabled:true,leadTimes:[1,7]},
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
@@ -2385,7 +2410,7 @@ async function registerMyDevice(){
     if(existing.some(d=>(d.token||d)===token)){toast('✅ This device is already registered');return;}
     const info=getDeviceInfo();
     appMembers[idx].fcmTokens=[...existing,{token,browser:info.browser,os:info.os,icon:info.icon,registeredAt:new Date().toISOString()}];
-    await saveSettings();
+    await saveMembersOnly();
     _renderMyProfileDevices(appMembers[idx]);
     toast('✅ Device registered for push notifications!');
   }catch(e){toast('⚠️ Registration failed: '+e.message);}
@@ -2399,7 +2424,7 @@ async function removeMyDeviceToken(token, btn){
   try{
     if(btn) btn.disabled=true;
     appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>(t.token||t)!==token);
-    await saveSettings();
+    await saveMembersOnly();
     _renderMyProfileDevices(appMembers[idx]);
     toast('🗑 Device removed');
   }catch(e){toast('⚠️ Failed: '+e.message);if(btn) btn.disabled=false;}
@@ -2413,7 +2438,8 @@ async function saveMyProfile(){
   const isAll=document.getElementById('mpNotifyAll')?.checked;
   const notifyTypes=isAll?['all']:[...document.querySelectorAll('.mp-notify-type:checked')].map(c=>c.value);
   appMembers[idx].notifyTypes=notifyTypes;
-  await saveSettings();
+  try { await saveMembersOnly(); }
+  catch(e) { toast('⚠️ Could not save: '+e.message); return; }
   toast('✅ Notification preferences saved');
   closeModal('myProfileModal');
 }
@@ -2865,22 +2891,23 @@ function memberDisplayName(m) { return (m.nickname||'').trim() || m.name; }
 function vehicleDisplayName(v) { return (v.nickname||'').trim() || v.name; }
 
 // ─── RBAC ─────────────────────────────────────────────────────
+let _storedAccessRoles = null;
 async function loadSettingsForAuth() {
   try {
     const doc = await db.collection('settings').doc('config').get();
     if (doc.exists && doc.data().authorizedUsers) appConfig.authorizedUsers = doc.data().authorizedUsers;
-  } catch(e) {}
+    _storedAccessRoles = doc.exists ? (doc.data().accessRoles || null) : null;
+  } catch(e) {
+    // Non-members can't read settings once firestore.rules are deployed;
+    // leaving authorizedUsers empty makes checkUserAccess() deny them.
+  }
 }
 
 async function checkUserAccess(user) {
+  // No "first sign-in becomes admin" bootstrap: if the access list is ever
+  // empty or unreadable, everyone is denied. Recover by adding an admin to
+  // settings/config in the Firebase console (see SECURITY.md).
   const users = appConfig.authorizedUsers || [];
-  if (!users.length) {
-    // Bootstrap: first user becomes admin
-    const entry = {email:user.email, name:user.displayName||user.email, role:'admin', addedAt:new Date().toISOString()};
-    appConfig.authorizedUsers = [entry];
-    try { await db.collection('settings').doc('config').set({authorizedUsers:[entry]},{merge:true}); } catch(e){}
-    return 'admin';
-  }
   const entry = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
   return entry ? (entry.role||'viewer') : 'denied'; // unknown users are DENIED, not viewers
 }
@@ -2995,10 +3022,6 @@ auth.onAuthStateChanged(async user => {
     await loadSettingsForAuth();
     const role = await checkUserAccess(user);
     if (role === 'denied') {
-      const listed = (appConfig.authorizedUsers||[]).some(u => (u.email||'').toLowerCase() === (user.email||'').toLowerCase());
-      document.getElementById('deniedMsg').textContent = listed
-        ? 'Your access has been turned off by a household admin.'
-        : "This Google account isn't on the household access list.";
       document.getElementById('deniedEmail').textContent = user.email || '';
       document.getElementById('appShell').classList.remove('app-visible');
       document.getElementById('loginScreen').style.display = 'none';
@@ -3011,6 +3034,12 @@ auth.onAuthStateChanged(async user => {
     const av = document.getElementById('userAvatar');
     if (user.photoURL) { av.src = user.photoURL; av.style.display = ''; } else { av.removeAttribute('src'); av.style.display = 'none'; }
     applyRBAC(role);
+    if (role === 'admin' && !sameAccessRoles(_storedAccessRoles, buildAccessRoles(appConfig.authorizedUsers))) {
+      db.collection('settings').doc('config')
+        .set({ accessRoles: buildAccessRoles(appConfig.authorizedUsers) }, { merge: true })
+        .then(() => { _storedAccessRoles = buildAccessRoles(appConfig.authorizedUsers); })
+        .catch(e => console.warn('accessRoles sync failed', e));
+    }
     startListeners();
     loadSettings();
   } else {
@@ -3102,6 +3131,16 @@ function toast(msg) {
   t.textContent=msg; t.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
+}
+function toastAction(msg, label, fn, ms=7000){
+  const t=document.getElementById('toast');
+  t.innerHTML='';
+  const span=document.createElement('span'); span.textContent=msg;
+  const b=document.createElement('button'); b.type='button'; b.className='toast-action'; b.textContent=label;
+  b.onclick=()=>{ clearTimeout(_toastTimer); t.classList.remove('show'); fn(); };
+  t.append(span,b); t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),ms);
 }
 function memberLabel(m){
   const s=String(m||'').toLowerCase().trim();
@@ -3375,7 +3414,7 @@ function renderAuto() {
       <td class="col-progress" style="min-width:80px">${progressBar(r.lastDate,r.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(r.attachmentUrls||[]),...(r.attachmentUrl&&!(r.attachmentUrls||[]).includes(r.attachmentUrl)?[r.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${escJs(r.id)}')" title="${r.completed?'Mark as not done':'Mark done'}">${r.completed?'✅':'⬜'}</button>
+        <button class="btn-icon btn-done${r.completed?' is-complete':''}" onclick="toggleAutoDone('${escJs(r.id)}')" title="${r.completed?'Mark as not done':isRecurring(r)?'Mark done — schedules the next one':'Mark done'}">${r.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editAuto('${escJs(r.id)}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${escJs(r.id)}')"  title="Delete">🗑</button>
       </div></td>
@@ -3477,15 +3516,7 @@ async function delAuto(id){
 
 async function toggleAutoDone(id){
   const r=autoRecords.find(x=>x.id===id);
-  if(!r) return;
-  const completed=!r.completed;
-  await db.collection('autoRecords').doc(id).update({
-    completed:completed,
-    completedAt:completed?firebase.firestore.FieldValue.serverTimestamp():null,
-    updatedBy:auth.currentUser?.displayName||'',
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  });
-  toast(completed?'✅ Marked as completed!':'↩️ Marked as not completed');
+  if(r) await markDone('autoRecords', r);
 }
 
 // ─── HOME ──────────────────────────────────────────
@@ -3502,7 +3533,7 @@ function renderHome(){
       <td class="col-progress" style="min-width:80px">${progressBar(h.lastDate,h.nextDate)}</td>
       <td><div class="btn-actions">
         ${[...(h.attachmentUrls||[]),...(h.attachmentUrl&&!(h.attachmentUrls||[]).includes(h.attachmentUrl)?[h.attachmentUrl]:[])].map((u,i)=>`<a class="btn-icon btn-attach" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer" title="File ${i+1}">${fileIcon(u)}</a>`).join('')}
-        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${escJs(h.id)}')" title="${h.completed?'Mark as not done':'Mark done'}">${h.completed?'✅':'⬜'}</button>
+        <button class="btn-icon btn-done${h.completed?' is-complete':''}" onclick="toggleHomeDone('${escJs(h.id)}')" title="${h.completed?'Mark as not done':isRecurring(h)?'Mark done — schedules the next one':'Mark done'}">${h.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editHome('${escJs(h.id)}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delHome('${escJs(h.id)}')"  title="Delete">🗑</button>
       </div></td>
@@ -3513,15 +3544,86 @@ function freqLabel(f){return{'30':'Monthly','60':'Every 2 Mo','90':'Quarterly','
 
 async function toggleHomeDone(id){
   const h=homeItems.find(x=>x.id===id);
-  if(!h) return;
-  const completed=!h.completed;
-  await db.collection('homeItems').doc(id).update({
-    completed:completed,
-    completedAt:completed?firebase.firestore.FieldValue.serverTimestamp():null,
-    updatedBy:auth.currentUser?.displayName||'',
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  });
-  toast(completed?'✅ Marked as completed!':'↩️ Marked as not completed');
+  if(h) await markDone('homeItems', h);
+}
+
+// ─── MARK DONE / ROLL FORWARD ─────────────────────────────────
+// Recurring items (an interval in durVal/durUnit, or legacy freq in days)
+// don't get stuck as "Completed": marking done records the service in
+// `history`, sets lastDate to today and moves nextDate (and the km target for
+// vehicles) forward one interval. One-off items keep the Completed toggle.
+function isoLocal(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function nextOccurrence(item, fromIso){
+  const [y,m,d]=fromIso.split('-').map(Number);
+  const v=parseInt(item.durVal,10);
+  if(v>0){
+    const unit=item.durUnit||'months';
+    if(unit==='days') return isoLocal(new Date(y,m-1,d+v));
+    const months=unit==='years'?v*12:v;
+    // Clamp to month end: Jan 31 + 1 month -> Feb 28/29, not Mar 3.
+    const last=new Date(y,m-1+months+1,0).getDate();
+    return isoLocal(new Date(y,m-1+months,Math.min(d,last)));
+  }
+  const f=parseInt(item.freq,10);
+  if(f>0) return isoLocal(new Date(y,m-1,d+f));
+  return null;
+}
+function isRecurring(item){ return nextOccurrence(item, isoLocal(TODAY))!==null; }
+function fmtLong(iso){
+  const [y,m,d]=iso.split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('en-CA',{month:'short',day:'numeric',year:'numeric'});
+}
+
+async function markDone(col, item){
+  const ref=db.collection(col).doc(item.id);
+  const by=auth.currentUser?.displayName||'';
+  const stamp=firebase.firestore.FieldValue.serverTimestamp();
+  try{
+    // Un-completing, or a one-off item: plain toggle as before.
+    if(item.completed || !isRecurring(item)){
+      const completed=!item.completed;
+      await ref.update({completed, completedAt:completed?stamp:null, updatedBy:by, updatedAt:stamp});
+      toast(completed?'✅ Marked as completed!':'↩️ Marked as not completed');
+      return;
+    }
+
+    const today=isoLocal(TODAY);
+    const next=nextOccurrence(item, today);
+    const changes={lastDate:today, nextDate:next, completed:false, completedAt:null, updatedBy:by, updatedAt:stamp};
+    const entry={doneOn:today, wasDue:item.nextDate||'', cost:item.cost||'', by, at:new Date().toISOString()};
+
+    const kmInt=Number(item.kmInterval)||0;
+    if(col==='autoRecords' && kmInt>0){
+      const label=(typeof autoRowVehicle==='function'?autoRowVehicle(item):'')+' — '+(item.service||'service');
+      const guess=item.nextMileage||item.mileage||'';
+      const ans=prompt(`Odometer now (km) for ${label}?\nLeave blank if you don't know.`, guess);
+      if(ans===null) return;                       // cancelled: change nothing
+      const km=parseInt(String(ans).replace(/[^0-9]/g,''),10);
+      if(km>0){
+        changes.mileage=km; changes.nextMileage=km+kmInt; entry.mileage=km;
+      } else if(Number(item.nextMileage)>0){
+        changes.nextMileage=Number(item.nextMileage)+kmInt;
+      }
+    }
+
+    const before={lastDate:item.lastDate||'', nextDate:item.nextDate||'', completed:!!item.completed,
+                  mileage:item.mileage??null, nextMileage:item.nextMileage??null};
+    await ref.update({...changes, history:firebase.firestore.FieldValue.arrayUnion(entry)});
+
+    toastAction(`✅ Done — next due ${fmtLong(next)}`, 'Undo', async()=>{
+      const restore={lastDate:before.lastDate, nextDate:before.nextDate, completed:before.completed,
+                     updatedBy:by, updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+                     history:firebase.firestore.FieldValue.arrayRemove(entry)};
+      if('mileage' in changes) restore.mileage=before.mileage;
+      if('nextMileage' in changes) restore.nextMileage=before.nextMileage;
+      try{ await ref.update(restore); toast('↩️ Undone'); }
+      catch(e){ toast('⚠️ Undo failed: '+e.message); }
+    });
+  }catch(e){
+    toast(e.code==='permission-denied' ? '🔒 You have view-only access' : '⚠️ Could not update: '+e.message);
+  }
 }
 
 async function saveHome(){

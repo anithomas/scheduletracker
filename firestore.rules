@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// Family Household Tracker — Firestore security rules.
+//
+// Access is decided by settings/config.accessRoles, a map of
+//   lowercased Google email -> 'admin' | 'contributor' | 'viewer' | 'denied'
+// that the app keeps in sync with settings/config.authorizedUsers whenever
+// an admin saves (see buildAccessRoles() in index.html).
+//
+//   admin        read + write everything, manage settings and access
+//   contributor  read everything; add/edit/delete records, events, home items
+//   viewer       read everything; may only change `members` (own devices/prefs)
+//   anyone else  nothing
+//
+// The reminder job (scripts/send-reminders.js) uses the Admin SDK, which
+// bypasses these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function myRole() {
+      return request.auth != null && request.auth.token.email_verified == true
+        ? get(/databases/$(database)/documents/settings/config).data
+            .get('accessRoles', {})
+            .get(request.auth.token.email.lower(), 'none')
+        : 'none';
+    }
+    function isMember()  { return myRole() in ['admin', 'contributor', 'viewer']; }
+    function canWrite()  { return myRole() in ['admin', 'contributor']; }
+    function isAdmin()   { return myRole() == 'admin'; }
+
+    match /settings/config {
+      allow read: if isMember();
+
+      // Admins can change anything except leaving the household with no admin.
+      // Other members can only touch `members` (device tokens, notification
+      // prefs). No one can create the doc from the app: if it is ever lost,
+      // recreate it in the Firebase console (see SECURITY.md).
+      allow update: if
+        (isAdmin()
+          && request.resource.data.get('accessRoles', {}).values().hasAny(['admin']))
+        || (isMember()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['members', 'updatedAt']));
+    }
+
+    match /autoRecords/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if canWrite();
+    }
+    match /homeItems/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if canWrite();
+    }
+    match /events/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if canWrite();
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

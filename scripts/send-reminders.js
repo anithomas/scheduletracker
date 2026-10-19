@@ -15,6 +15,7 @@
  *   FIREBASE_PROJECT_ID       — Firebase project ID (e.g. home-and-auto-tracker)
  *   GMAIL_USER                — Google account email used to send SMS gateway emails
  *   GMAIL_APP_PASSWORD        — Google App Password for the above account
+ *   SMS_GATEWAYS_JSON         — {"Member Name":"number@carrier-gateway", ...}
  */
 
 const admin = require('firebase-admin');
@@ -22,13 +23,23 @@ const nodemailer = require('nodemailer');
 
 // ─── SMS Gateway Map ────────────────────────────────────────────
 // Free carrier email-to-SMS gateways — messages arrive as real SMS texts
-// Bell: @txt.bell.ca | Rogers: @pcs.rogers.com
-const SMS_GATEWAYS = {
-  'ANI P Thomas':  '4169034893@txt.bell.ca',
-  'ANJU THOMAS':   '4169026311@pcs.rogers.com',
-  'Kevin Thomas':  '6475123657@txt.bell.ca',
-  'Rachel Thomas': '4375539312@txt.bell.ca',
-};
+// (Bell: @txt.bell.ca | Rogers: @pcs.rogers.com).
+// Phone numbers are personal data and this repo is public, so the map comes
+// from the SMS_GATEWAYS_JSON secret:  {"Member Name":"5551234567@txt.bell.ca", ...}
+// Keys must match member names as stored in settings/config.
+function loadSmsGateways() {
+  const raw = process.env.SMS_GATEWAYS_JSON;
+  if (!raw) { console.log('ℹ️  SMS_GATEWAYS_JSON not set — SMS disabled'); return {}; }
+  try {
+    const map = JSON.parse(raw);
+    if (!map || typeof map !== 'object' || Array.isArray(map)) throw new Error('not an object');
+    return map;
+  } catch (e) {
+    console.error('⚠️  SMS_GATEWAYS_JSON is not valid JSON (' + e.message + ') — SMS disabled');
+    return {};
+  }
+}
+const SMS_GATEWAYS = loadSmsGateways();
 const ALL_SMS_ADDRESSES = Object.values(SMS_GATEWAYS);
 
 // ─── Firebase Init ─────────────────────────────────────────────
@@ -64,6 +75,9 @@ function createTransporter() {
   });
 }
 
+// Actions logs on a public repo are public: never print full phone numbers.
+function maskAddr(a) { return String(a).replace(/^(\d{3})\d+(\d{2})@/, '$1*****$2@'); }
+
 async function sendSMS(transporter, toAddresses, subject, text) {
   if (!transporter || !toAddresses.length) return { sent: 0, failed: 0 };
   let sent = 0, failed = 0;
@@ -75,10 +89,10 @@ async function sendSMS(transporter, toAddresses, subject, text) {
         subject,
         text,
       });
-      console.log(`  📱 SMS ✅ → ${to}`);
+      console.log(`  📱 SMS ✅ → ${maskAddr(to)}`);
       sent++;
     } catch (err) {
-      console.warn(`  📱 SMS ⚠️  → ${to}: ${err.message}`);
+      console.warn(`  📱 SMS ⚠️  → ${maskAddr(to)}: ${err.message}`);
       failed++;
     }
   }
