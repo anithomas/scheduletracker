@@ -33,4 +33,15 @@ jobs:
           cache: npm
           cache-dependency-path: tests/rules/package-lock.json
       - run: npm ci
-      - run: npm test
+      - name: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test 2>&1 | tee test-output.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # Surface the tail of the output as one annotation (readable via the API/UI summary)
+            msg=$(grep -vE '^\s*$' test-output.txt | tail -n 80 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Rules tests failed::${msg}"
+          fi
+          exit $status
