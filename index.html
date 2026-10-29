@@ -1747,8 +1747,22 @@
     <!-- ─────────────────────────────────────────────────── -->
 
     <div class="form-actions">
+      <button class="btn btn-ghost btn-del" id="calDeleteBtn" style="display:none;color:var(--red);margin-right:auto" onclick="deleteFromModal()">🗑 Delete</button>
       <button class="btn btn-ghost" onclick="closeModal('calModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveEvent()">💾 Save Event</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE EVENT MODAL — recurring-aware: offers just-this-date / this-and-future /
+     entire-series when the event repeats, instead of one blunt confirm(). -->
+<div class="modal-overlay" id="deleteEventModal">
+  <div class="modal">
+    <div class="modal-title"><div class="title-icon" style="background:linear-gradient(135deg,#f6d9d4,#eab8ae)">🗑</div> Delete Event</div>
+    <p id="delEventSummary" style="font-size:.86rem;color:var(--gray-500);margin:0 0 14px;line-height:1.4"></p>
+    <div id="delEventChoices" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('deleteEventModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -3892,7 +3906,7 @@ function renderCalendar(){
         <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${escJs(e.id)}')">📆</button>
         <button class="btn-icon btn-done${e.completed?' is-complete':''}" onclick="toggleEventDone('${escJs(e.id)}')" title="${e.completed?'Mark as not done':'Mark done'}">${e.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editEvent('${escJs(e.id)}','')">✏️</button>
-        <button class="btn-icon btn-del"  onclick="delEvent('${escJs(e.id)}','')">🗑</button>
+        <button class="btn-icon btn-del"  onclick="confirmDeleteEvent('${escJs(e.id)}','')">🗑</button>
       </div></td>
     </tr>`).join('')||`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
 }
@@ -4083,39 +4097,139 @@ function toggleRecurOptions(){
   }
 }
 
-async function delEvent(id, instanceDate=''){
+// ─── DELETE EVENT (recurring-aware) ────────────────────────────
+// Single entry point for every delete trigger (Upcoming-list trash icon,
+// and the Delete button inside the edit modal — which is how a stray
+// recurring instance clicked on the calendar grid now gets a delete
+// option at all; before this it had none). A plain one-off event (or an
+// already-materialized single-occurrence exception doc) just confirms
+// and deletes. A recurring series instead opens deleteEventModal with
+// up to three outcomes:
+//   • "Just this date"           — only offered when a specific occurrence
+//                                   was clicked (instanceDate is known);
+//                                   adds that date to recurrence.exceptions.
+//   • "This and all future"      — sets recurrence.endDate to the day
+//                                   before the cutoff date; past history
+//                                   (and any earlier exception docs) is
+//                                   left untouched.
+//   • "Entire series"            — deletes the parent doc and every
+//                                   exception doc belonging to it.
+// Every outcome gets an Undo toast, since the choices aren't equally
+// easy to reverse by hand and a stray series is hard enough to find
+// without the fix for it becoming its own trap.
+let _delEventCtx = null; // {id, instanceDate} captured for the open deleteEventModal
+
+function confirmDeleteEvent(id, instanceDate=''){
   const e = events.find(x=>x.id===id);
   if(!e) return;
 
-  if(instanceDate && e.recurrence && e.recurrence.type) {
-    // Deleting one occurrence of a recurring series
-    if(!confirm(`Remove only the ${instanceDate} occurrence of "${e.title}"?`)) return;
-    const existing = e.recurrence.exceptions || [];
-    try {
-      await db.collection('events').doc(id).update({
-        'recurrence.exceptions': [...new Set([...existing, instanceDate])],
-      });
-      toast('🗑 Occurrence removed');
-    } catch(err){ console.error('delEvent occurrence failed:',err); toast('❌ Could not remove: '+friendlyError(err)); }
+  if(!(e.recurrence && e.recurrence.type)){
+    // Plain one-off, or an already-materialized single-occurrence exception doc
+    if(!confirm('Delete this event?')) return;
+    deleteEventDoc(e);
     return;
   }
 
-  // Deleting the whole event (or series)
-  const msg = (e.recurrence && e.recurrence.type)
-    ? `Delete the ENTIRE series for "${e.title}"? This removes all occurrences.`
-    : 'Delete this event?';
-  if(!confirm(msg)) return;
+  _delEventCtx = {id, instanceDate};
+  document.getElementById('delEventSummary').textContent =
+    `"${e.title}" repeats ${e.recurrence.type}${instanceDate?' — you opened '+fmtLong(instanceDate):''}. What would you like to delete?`;
+  const btn = (label, kind, danger) =>
+    `<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;text-align:left${danger?';color:var(--red)':''}" onclick="runDeleteChoice('${kind}')">${label}</button>`;
+  const choices = [];
+  if(instanceDate) choices.push(btn(`📅 Just ${fmtLong(instanceDate)}`, 'occurrence'));
+  choices.push(btn('⏩ This and all future occurrences', 'future'));
+  choices.push(btn('🗑 Entire series (every occurrence, past and future)', 'series', true));
+  document.getElementById('delEventChoices').innerHTML = choices.join('');
+  // Only close calModal if this was triggered from inside it (deleteFromModal) —
+  // deleting straight off the Upcoming-list trash icon never opened it, and
+  // closeModal() would otherwise yank the page's scroll position back to 0.
+  const calEl = document.getElementById('calModal');
+  if(calEl && calEl.classList.contains('open')) closeModal('calModal');
+  openModal('deleteEventModal');
+}
+
+// Reads the event + instance date straight off the open edit modal's own
+// hidden fields, so the grid's "click an occurrence → edit modal" path
+// gets a real delete option for the first time.
+function deleteFromModal(){
+  const id = document.getElementById('calEditId').value;
+  const instanceDate = document.getElementById('calRecurInstanceDate').value;
+  if(!id) return;
+  confirmDeleteEvent(id, instanceDate);
+}
+
+async function runDeleteChoice(kind){
+  const ctx = _delEventCtx; _delEventCtx = null;
+  closeModal('deleteEventModal');
+  if(!ctx) return;
+  const e = events.find(x=>x.id===ctx.id);
+  if(!e) return;
+  const by = auth.currentUser?.displayName||'';
+  const ref = db.collection('events').doc(e.id);
+
   try {
-    // Clean up any standalone exception docs belonging to this series
-    if (e.recurrence && e.recurrence.type) {
-      const kids = events.filter(x => x.recurringParentId === id);
-      for (const k of kids) {
-        try { await db.collection('events').doc(k.id).delete(); } catch(e2){}
-      }
+    if(kind==='occurrence'){
+      const ds = ctx.instanceDate;
+      const before = e.recurrence.exceptions || [];
+      await ref.update({
+        'recurrence.exceptions': [...new Set([...before, ds])],
+        updatedBy:by, updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      toastAction(`🗑 Removed ${fmtLong(ds)}`, 'Undo', async()=>{
+        try {
+          await ref.update({ 'recurrence.exceptions':before, updatedBy:by, updatedAt:firebase.firestore.FieldValue.serverTimestamp() });
+          toast('↩️ Restored');
+        } catch(err){ toast('⚠️ Undo failed: '+err.message); }
+      });
+
+    } else if(kind==='future'){
+      const fromDs = ctx.instanceDate || getNextOccurrence(e, todayDs(), 365) || e.date;
+      const d = new Date(fromDs+'T00:00:00'); d.setDate(d.getDate()-1);
+      const newEnd = isoLocal(d);
+      const beforeEnd = e.recurrence.endDate ?? null;
+      await ref.update({
+        'recurrence.endDate':newEnd, updatedBy:by, updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      toastAction(`🗑 Stopped repeating after ${fmtLong(newEnd)}`, 'Undo', async()=>{
+        try {
+          await ref.update({
+            'recurrence.endDate': beforeEnd===null ? firebase.firestore.FieldValue.delete() : beforeEnd,
+            updatedBy:by, updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          toast('↩️ Restored');
+        } catch(err){ toast('⚠️ Undo failed: '+err.message); }
+      });
+
+    } else if(kind==='series'){
+      if(!confirm(`Delete the ENTIRE series for "${e.title}"? This removes all occurrences.`)) return;
+      const kids = events.filter(x => x.recurringParentId === e.id);
+      const kidData = kids.map(k => { const d={...k}; delete d.id; return {id:k.id, data:d}; });
+      const parentData = {...e}; delete parentData.id;
+      for(const k of kids){ try { await db.collection('events').doc(k.id).delete(); } catch(e2){} }
+      await ref.delete();
+      toastAction(`🗑 Series "${e.title}" deleted`, 'Undo', async()=>{
+        try {
+          await db.collection('events').doc(e.id).set(parentData);
+          for(const k of kidData){ await db.collection('events').doc(k.id).set(k.data); }
+          toast('↩️ Series restored');
+        } catch(err){ toast('⚠️ Undo failed: '+err.message); }
+      }, 10000);
     }
+  } catch(err){
+    console.error('event delete failed:', err);
+    toast(err.code==='permission-denied' ? '🔒 You have view-only access' : '⚠️ Could not update: '+err.message);
+  }
+}
+
+async function deleteEventDoc(e){
+  const data = {...e}; const id = e.id; delete data.id;
+  try {
     await db.collection('events').doc(id).delete();
-    toast('🗑 Event deleted');
-  } catch(err){ console.error('delEvent failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
+    toastAction('🗑 Event deleted', 'Undo', async()=>{
+      try { await db.collection('events').doc(id).set(data); toast('↩️ Restored'); }
+      catch(err){ toast('⚠️ Undo failed: '+err.message); }
+    });
+  } catch(err){ console.error('deleteEventDoc failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
 }
 
 async function toggleEventDone(id){
@@ -4448,6 +4562,14 @@ function openModal(id){
     _sb.disabled = false;
     if (_sb.dataset.prevLabel) { _sb.textContent = _sb.dataset.prevLabel; delete _sb.dataset.prevLabel; }
     else if (/^⏳/.test(_sb.textContent) && _defaultLabel) { _sb.textContent = _defaultLabel; }
+  }
+  // Delete only makes sense once something exists to delete — editEvent() sets
+  // calEditId before opening, openCalDay()/the bare "+ Add Event" button leave
+  // it empty, and closeModal() always clears it, so this reads reliably no
+  // matter which entry point opened the modal.
+  if(id==='calModal'){
+    const delBtn=document.getElementById('calDeleteBtn');
+    if(delBtn) delBtn.style.display = document.getElementById('calEditId').value ? '' : 'none';
   }
   // Save scroll position then lock body — preserves position without viewport jump
   _modalScrollY = window.scrollY || window.pageYOffset || 0;
