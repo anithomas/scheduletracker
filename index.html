@@ -1018,7 +1018,7 @@
         <div class="card-title" style="margin-bottom:16px">📋 Upcoming Events</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th>Repeat</th><th></th></tr></thead>
+            <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th>Repeat</th><th>Status</th><th></th></tr></thead>
             <tbody id="eventBody"></tbody>
           </table>
         </div>
@@ -3887,12 +3887,14 @@ function renderCalendar(){
       <td><span class="type-badge type-${esc(e.type)}">${esc(e.type)}</span></td>
       <td><div style="font-size:.79rem;color:var(--gray-500);max-width:160px">${e.notes?esc(e.notes):'—'}</div></td>
       <td><div class="td-main">${e.recurrence&&e.recurrence.type?`<span style="font-size:.72rem;color:var(--gray-400)">🔁 ${esc(e.recurrence.type)}</span>`:''}</div></td>
+      <td>${statusBadge(e._displayDate||e.date,e.completed)}</td>
       <td><div class="btn-actions">
         <button class="btn-icon" title="Sync to Google Calendar" onclick="syncToGCal('${escJs(e.id)}')">📆</button>
+        <button class="btn-icon btn-done${e.completed?' is-complete':''}" onclick="toggleEventDone('${escJs(e.id)}')" title="${e.completed?'Mark as not done':'Mark done'}">${e.completed?'✅':'⬜'}</button>
         <button class="btn-icon btn-edit" onclick="editEvent('${escJs(e.id)}','')">✏️</button>
         <button class="btn-icon btn-del"  onclick="delEvent('${escJs(e.id)}','')">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
+    </tr>`).join('')||`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
 }
 
 function changeMonth(dir){
@@ -4114,6 +4116,16 @@ async function delEvent(id, instanceDate=''){
     await db.collection('events').doc(id).delete();
     toast('🗑 Event deleted');
   } catch(err){ console.error('delEvent failed:',err); toast('❌ Could not delete: '+friendlyError(err)); }
+}
+
+async function toggleEventDone(id){
+  // Events have no durVal/freq, so isRecurring() in markDone() always reads
+  // false for them — this is a plain completed/not-completed toggle on the
+  // event doc, same as Auto/Home's one-off path. Note: a recurring series
+  // shows as a single row (its next occurrence) in Upcoming Events, so
+  // toggling marks the whole series done, not just that one occurrence.
+  const e=events.find(x=>x.id===id);
+  if(e) await markDone('events', e);
 }
 
 // ─── GOOGLE CALENDAR SYNC (Phase 4) ───────────────
