@@ -20,6 +20,9 @@
 
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
+const {
+  daysUntil, shouldRemind, shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
+} = require('./reminder-logic');
 
 // ─── SMS Gateway Map ────────────────────────────────────────────
 // Free carrier email-to-SMS gateways — messages arrive as real SMS texts
@@ -43,11 +46,20 @@ const SMS_GATEWAYS = loadSmsGateways();
 const ALL_SMS_ADDRESSES = Object.values(SMS_GATEWAYS);
 
 // ─── Firebase Init ─────────────────────────────────────────────
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 const projectId = process.env.FIREBASE_PROJECT_ID;
 
-if (!serviceAccount || !projectId) {
+if (!rawServiceAccount || !projectId) {
   console.error('❌ Missing FIREBASE_SERVICE_ACCOUNT or FIREBASE_PROJECT_ID env vars');
+  process.exit(1);
+}
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(rawServiceAccount);
+} catch (e) {
+  // Deliberately not printing e.message: JSON parse errors can quote part of the
+  // secret, and Actions logs on a public repo are public.
+  console.error('❌ FIREBASE_SERVICE_ACCOUNT is not valid JSON — re-paste the full key file into the secret');
   process.exit(1);
 }
 
@@ -100,17 +112,23 @@ async function sendSMS(transporter, toAddresses, subject, text) {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
-  return Math.round((d - now) / 86400000);
-}
-
-function dayLabel(d) {
-  if (d === 0) return 'Today';
-  if (d === 1) return 'Tomorrow';
-  return `In ${d} days`;
+// Dead-token pruning (S4). FCM tells us when a device token is permanently
+// invalid (app uninstalled, token rotated); keeping them only grows the list.
+// Runs in a transaction so a concurrent Admin-screen save is not overwritten.
+async function pruneDeadTokens(dead) {
+  if (!dead.size) return;
+  const ref = db.collection('settings').doc('config');
+  try {
+    const removed = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const result = removeTokens((snap.data() || {}).members, dead);
+      if (result.removed) tx.update(ref, { members: result.members });
+      return result.removed;
+    });
+    console.log(`  🧹 Pruned ${removed} dead device token(s)`);
+  } catch (err) {
+    console.warn(`  ⚠️  Could not prune dead tokens: ${err.message}`);
+  }
 }
 
 // ─── Main ──────────────────────────────────────────────────────
@@ -126,7 +144,6 @@ async function main() {
   if (reminderSettings.enabled === false) { console.log('ℹ️  Reminders disabled — exiting'); return; }
 
   const leadTimes = reminderSettings.leadTimes || [1, 7];
-  const maxDays = Math.max(...leadTimes);
   const members = config.members || [];
 
   console.log(`  Lead times: ${leadTimes.join(', ')} days | Members: ${members.length}`);
@@ -158,9 +175,9 @@ async function main() {
   const reminders = [];
 
   events.forEach(e => {
+    if (e.completed) return;
     const d = daysUntil(e.date);
-    if (d === null || d < 0 || d > maxDays) return;
-    if (!leadTimes.some(lt => d <= lt)) return;
+    if (!shouldRemind(d, leadTimes)) return;
 
     const evType = (e.type || '').toLowerCase();
     const eventMemberNames = new Set(
@@ -206,27 +223,27 @@ async function main() {
   });
 
   autoRecords.forEach(r => {
+    if (r.completed) return;
     const d = daysUntil(r.nextDate);
-    if (d === null || d < 0 || d > maxDays) return;
-    if (!leadTimes.some(lt => d <= lt)) return;
+    if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
     const vehicle = r.vehicleName || r.vehicle || '';
     reminders.push({
-      icon: '🚗',
+      icon: d < 0 ? '⚠️' : '🚗',
       title: `${r.service}${vehicle ? ' — ' + vehicle : ''}`,
-      body: `Due: ${dayLabel(d)}`,
+      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
       tokens: allTokens,
       smsAddresses: ALL_SMS_ADDRESSES,
     });
   });
 
   homeItems.forEach(h => {
+    if (h.completed) return;
     const d = daysUntil(h.nextDate);
-    if (d === null || d < 0 || d > maxDays) return;
-    if (!leadTimes.some(lt => d <= lt)) return;
+    if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
     reminders.push({
-      icon: '🏡',
+      icon: d < 0 ? '⚠️' : '🏡',
       title: h.item || h.description || 'Home maintenance',
-      body: `Due: ${dayLabel(d)}`,
+      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
       tokens: allTokens,
       smsAddresses: ALL_SMS_ADDRESSES,
     });
@@ -241,6 +258,7 @@ async function main() {
 
   // 4. Send FCM push + SMS for each reminder
   let fcmSent = 0, fcmFailed = 0, smsSent = 0, smsFailed = 0;
+  const deadTokens = new Set();
 
   for (const reminder of reminders) {
     const subject = `${reminder.icon} ${reminder.title}`;
@@ -259,7 +277,10 @@ async function main() {
         fcmFailed += resp.failureCount;
         if (resp.failureCount > 0) {
           resp.responses.forEach((r, i) => {
-            if (!r.success) console.warn(`  ⚠️  FCM token ${i} failed: ${r.error?.message}`);
+            if (!r.success) {
+              console.warn(`  ⚠️  FCM token ${i} failed: ${r.error?.message}`);
+              if (isDeadTokenError(r.error?.code)) deadTokens.add(tokens[i]);
+            }
           });
         }
         console.log(`  🔔 FCM "${reminder.title}" → ${resp.successCount}/${tokens.length} delivered`);
@@ -274,6 +295,8 @@ async function main() {
     smsSent   += smsResult.sent;
     smsFailed += smsResult.failed;
   }
+
+  await pruneDeadTokens(deadTokens);
 
   console.log(`\n✅ Done — FCM: ${fcmSent} delivered / ${fcmFailed} failed | SMS: ${smsSent} sent / ${smsFailed} failed`);
 }

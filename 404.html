@@ -4,12 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>404 — Thomas Family Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #0f6b6e 0%, #0a4f52 100%);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0b1f3a 0%, #071427 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -25,7 +28,7 @@
       content: '';
       position: absolute;
       width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(10,79,82,.35) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(7,20,39,.35) 0%, transparent 70%);
       top: -150px; right: -150px;
       border-radius: 50%;
     }
@@ -48,7 +51,7 @@
       max-width: 540px;
       width: 100%;
       z-index: 1;
-      box-shadow: 0 32px 80px rgba(43,58,58,.35);
+      box-shadow: 0 32px 80px rgba(11,31,58,.35);
     }
 
     .emoji-stack {
@@ -69,13 +72,13 @@
       line-height: 1;
       letter-spacing: -4px;
       margin: 8px 0 4px;
-      text-shadow: 0 4px 30px rgba(43,58,58,.4);
+      text-shadow: 0 4px 30px rgba(11,31,58,.4);
     }
 
     .code span { color: #f9efd9; }
 
     .headline {
-      font-family: Georgia, serif;
+      font-family: Merriweather, Georgia, serif;
       font-size: 1.4rem;
       font-weight: 700;
       color: rgba(255,255,255,.95);
@@ -96,7 +99,7 @@
     }
 
     .error-log {
-      background: rgba(43,58,58,.25);
+      background: rgba(11,31,58,.25);
       border: 1px solid rgba(255,255,255,.1);
       border-radius: 12px;
       padding: 16px 20px;
@@ -108,7 +111,7 @@
       line-height: 1.8;
     }
 
-    .error-log .ok   { color: #7fa37f; }
+    .error-log .ok   { color: #2c8a5d; }
     .error-log .warn { color: #d9a441; }
     .error-log .err  { color: #e76f51; }
 
@@ -117,18 +120,18 @@
       align-items: center;
       gap: 8px;
       background: #fff;
-      color: #2b3a3a;
+      color: #334155;
       text-decoration: none;
       font-weight: 700;
       font-size: .95rem;
       padding: 14px 28px;
       border-radius: 14px;
-      box-shadow: 0 4px 20px rgba(43,58,58,.25);
+      box-shadow: 0 4px 20px rgba(11,31,58,.25);
       transition: transform .15s, box-shadow .15s;
     }
     .btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(43,58,58,.35);
+      box-shadow: 0 8px 30px rgba(11,31,58,.35);
     }
 
     .footer-note {

@@ -32,7 +32,7 @@ messagingInstance.onBackgroundMessage(function(payload) {
 // changes the SW script's bytes, which is what makes browsers notice there's
 // a new worker to install — an unchanged sw.js can otherwise sit unnoticed
 // for up to a day even when index.html has changed.
-const CACHE = 'tracker-v3';
+const CACHE = 'tracker-v4';
 const PRECACHE = ['/'];
 
 self.addEventListener('install', e => {

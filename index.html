@@ -1882,6 +1882,14 @@ function toDs(d){
 }
 function todayDs(){ return toDs(new Date()); }
 
+// Parse "YYYY-MM-DD" as LOCAL midnight. new Date("2026-10-31") is UTC midnight,
+// which in Toronto is 8 pm the previous day, so every due date read one day
+// early (due today showed "Overdue 1d", due tomorrow showed "Due in 0d").
+function parseDs(ds){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ds || ''));
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(ds);
+}
+
 // Returns true if the calendar day changed (callers can re-render on true)
 function refreshToday(){
   const fresh = new Date(); fresh.setHours(0,0,0,0);
@@ -1893,9 +1901,10 @@ function refreshToday(){
 
 // Re-render when the day rolls over (checked every minute) and whenever the
 // user returns to a backgrounded tab.
-setInterval(() => { if (refreshToday()) rerenderAll(); }, 60000);
+// A new day also refreshes the reminder banner (startListeners only checks once).
+setInterval(() => { if (refreshToday()) { rerenderAll(); try { checkAndShowReminders(); } catch(e){} } }, 60000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && refreshToday()) rerenderAll();
+  if (!document.hidden && refreshToday()) { rerenderAll(); try { checkAndShowReminders(); } catch(e){} }
 });
 
 function rerenderAll(){
@@ -1939,7 +1948,7 @@ let eventTypes = [
   {value:'other',   emoji:'📎', label:'Other'},
 ];
 
-const VEHICLE_COLORS = ['#0b1f3a','#0b1f3a','#071427','#1f6f4a','#96690f','#a03d24','#a03d24','#334155','#334155','#334155','#96690f','#a03d24'];
+const VEHICLE_COLORS = ['#0b1f3a','#071427','#1f6f4a','#2c8a5d','#334155','#64748b','#96690f','#d9a441','#a03d24','#e76f51','#4a5f7a','#164a33'];
 
 // ─── VEHICLE LOOKUP HELPERS ───────────────────────────────────
 function getVehicleForRecord(r) {
@@ -2711,13 +2720,14 @@ function checkAndShowReminders() {
   const todayDs = toDs(now);
   const daysUntilDate = ds => {
     if (!ds) return null;
-    const d = new Date(ds); d.setHours(0,0,0,0);
+    const d = parseDs(ds);
     return Math.round((d - now) / 86400000);
   };
   const reminders = [];
 
   events.forEach(e => {
     if (e.recurringParentId) return; // exception docs handled via parent
+    if (e.completed) return;         // done items stop reminding
     let eventDate;
     if (e.recurrence && e.recurrence.type) {
       // Recurring event: use next upcoming occurrence instead of series start date
@@ -2733,32 +2743,50 @@ function checkAndShowReminders() {
     reminders.push({ icon: '📅', title: e.title, label, member: e.member, date: eventDate, urgent: isUrgent });
   });
 
+  // Banner label for a due date: overdue items stay visible (they used to vanish
+  // the day after they were due, exactly when they matter most); completed ones don't.
+  const dueLabel = d => d < 0 ? `Overdue by ${-d} day${d === -1 ? '' : 's'}`
+                     : d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
+
   autoRecords.forEach(r => {
+    if (r.completed) return;
     const d = daysUntilDate(r.nextDate);
-    if (d === null || d < 0 || d > maxLeadDays) return;
-    if (leadTimes.some(lt => d <= lt)) {
+    if (d === null || d > maxLeadDays) return;
+    if (d < 0 || leadTimes.some(lt => d <= lt)) {
       const veh = getVehicleForRecord(r);
-      const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
-      reminders.push({ icon: '🚗', title: `${r.service}${veh ? ' — ' + vehicleDisplayName(veh) : ''}`, label, date: r.nextDate, urgent: true });
+      reminders.push({ icon: '🚗', title: `${r.service}${veh ? ' — ' + vehicleDisplayName(veh) : ''}`, label: dueLabel(d), date: r.nextDate, urgent: true });
     }
   });
 
   homeItems.forEach(h => {
+    if (h.completed) return;
     const d = daysUntilDate(h.nextDate);
-    if (d === null || d < 0 || d > maxLeadDays) return;
-    if (leadTimes.some(lt => d <= lt)) {
-      const label = d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
-      reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label, date: h.nextDate, urgent: true });
+    if (d === null || d > maxLeadDays) return;
+    if (d < 0 || leadTimes.some(lt => d <= lt)) {
+      reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label: dueLabel(d), date: h.nextDate, urgent: true });
     }
   });
 
   if (!reminders.length) return;
   reminders.sort((a, b) => (a.date||'').localeCompare(b.date||''));
   showReminderBanner(reminders);
-  const urgent = reminders.filter(r => r.urgent && daysUntilDate(r.date) <= 1);
-  if (urgent.length && Notification.permission === 'granted') {
-    urgent.forEach(r => showBrowserNotification(`${r.icon} ${r.title}`, r.label));
-  }
+  // Browser notifications: only today/tomorrow (never overdue), and only once per
+  // item per day. Before, every Firestore snapshot re-ran this and re-notified.
+  if (Notification.permission !== 'granted') return;
+  let seen = { day: todayDs, keys: [] };
+  try {
+    const stored = JSON.parse(localStorage.getItem('trackerNotified') || 'null');
+    if (stored && stored.day === todayDs && Array.isArray(stored.keys)) seen = stored;
+  } catch (e) {}
+  reminders
+    .filter(r => r.urgent && daysUntilDate(r.date) >= 0 && daysUntilDate(r.date) <= 1)
+    .forEach(r => {
+      const key = `${r.icon}|${r.title}|${r.date}`;
+      if (seen.keys.includes(key)) return;
+      seen.keys.push(key);
+      showBrowserNotification(`${r.icon} ${r.title}`, r.label);
+    });
+  try { localStorage.setItem('trackerNotified', JSON.stringify(seen)); } catch (e) {}
 }
 
 function showReminderBanner(reminders) {
@@ -2769,7 +2797,7 @@ function showReminderBanner(reminders) {
   banner.className = 'reminder-banner';
   banner.innerHTML = `
     <div class="reminder-banner-header">
-      <span class="reminder-banner-title">🔔 ${reminders.length} Upcoming Reminder${reminders.length > 1 ? 's' : ''}</span>
+      <span class="reminder-banner-title">🔔 ${reminders.length} Reminder${reminders.length > 1 ? 's' : ''}</span>
       <button class="reminder-dismiss" onclick="document.getElementById('reminderBanner').remove()">✕</button>
     </div>
     <div class="reminder-banner-items">
@@ -3082,20 +3110,33 @@ function startListeners() {
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = [];
   setSyncStatus('connecting');
-  let initialLoad = 0;
-  const maybeCheckReminders = () => { if (++initialLoad >= 3) checkAndShowReminders(); };
+  // Run the reminder check ONCE, after all three collections have delivered their
+  // first snapshot. The old counter kept incrementing, so every later edit by
+  // anyone re-popped the banner and re-fired browser notifications. Day rollover
+  // is handled separately (refreshToday -> rerenderAll).
+  const firstLoad = new Set();
+  const maybeCheckReminders = name => {
+    if (firstLoad.has(name)) return;
+    firstLoad.add(name);
+    if (firstLoad.size === 3) checkAndShowReminders();
+  };
+  // A failed listener used to leave the badge on "Live" with silently stale data.
+  const onListenError = name => err => {
+    console.warn(`Firestore listener "${name}" failed:`, err && err.code, err && err.message);
+    setSyncStatus('offline');
+  };
   unsubs.push(db.collection('autoRecords').orderBy('lastDate','desc').onSnapshot(s=>{
     autoRecords = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderAuto(); renderSummary(); setSyncStatus('live'); maybeCheckReminders();
-  }, ()=>setSyncStatus('offline')));
+    renderAuto(); renderSummary(); setSyncStatus('live'); maybeCheckReminders('autoRecords');
+  }, onListenError('autoRecords')));
   unsubs.push(db.collection('homeItems').orderBy('nextDate','asc').onSnapshot(s=>{
     homeItems = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderHome(); renderSummary(); maybeCheckReminders();
-  }));
+    renderHome(); renderSummary(); maybeCheckReminders('homeItems');
+  }, onListenError('homeItems')));
   unsubs.push(db.collection('events').orderBy('date','asc').onSnapshot(s=>{
     events = s.docs.map(d=>({id:d.id,...d.data()}));
-    renderCalendar(); renderSummary(); maybeCheckReminders();
-  }));
+    renderCalendar(); renderSummary(); maybeCheckReminders('events');
+  }, onListenError('events')));
   initFCM();
 }
 
@@ -3108,7 +3149,7 @@ function setSyncStatus(s) {
 // ─── UTILITIES ────────────────────────────────────────────────
 function daysUntil(ds) {
   if (!ds) return null;
-  const d=new Date(ds); d.setHours(0,0,0,0);
+  const d=parseDs(ds);
   return Math.round((d-TODAY)/86400000);
 }
 function statusBadge(ds, completed) {
@@ -3116,13 +3157,14 @@ function statusBadge(ds, completed) {
   const d=daysUntil(ds);
   if (d===null) return '<span class="badge badge-ok">—</span>';
   if (d<0)  return `<span class="badge badge-overdue">Overdue ${Math.abs(d)}d</span>`;
+  if (d===0) return '<span class="badge badge-due">Due today</span>';
   if (d<=14) return `<span class="badge badge-due">Due in ${d}d</span>`;
   return '<span class="badge badge-ok">On Track</span>';
 }
 function progressBar(lastDs, nextDs) {
   if (!lastDs||!nextDs) return '';
-  const last=new Date(lastDs); last.setHours(0,0,0,0);
-  const next=new Date(nextDs); next.setHours(0,0,0,0);
+  const last=parseDs(lastDs);
+  const next=parseDs(nextDs);
   const total=next-last, elapsed=TODAY-last;
   const pct=Math.min(100,Math.max(0,Math.round(elapsed/total*100)));
   const cls=pct>=100?'progress-overdue':pct>=75?'progress-due':'progress-ok';
