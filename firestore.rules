@@ -9,8 +9,16 @@ rules_version = '2';
 //
 //   admin        read + write everything, manage settings and access
 //   contributor  read everything; add/edit/delete records, events, home items
-//   viewer       read everything; may only change `members` (own devices/prefs)
+//   viewer       read everything; may only write their OWN memberPrefs doc
 //   anyone else  nothing
+//
+// Per-person data (push device tokens, notification-type choices) lives in
+// memberPrefs/{lowercased email}, readable/writable only by that person or an
+// admin (Phase 2, S1). It used to live inline on settings/config.members,
+// where any signed-in member could write the *whole* `members` array —
+// including every other member's device tokens and names, not just their
+// own — because the old rule only checked which top-level settings/config
+// keys changed, never what changed inside `members`.
 //
 // The reminder job (scripts/send-reminders.js) uses the Admin SDK, which
 // bypasses these rules.
@@ -27,20 +35,32 @@ service cloud.firestore {
     function isMember()  { return myRole() in ['admin', 'contributor', 'viewer']; }
     function canWrite()  { return myRole() in ['admin', 'contributor']; }
     function isAdmin()   { return myRole() == 'admin'; }
+    function myEmail()   { return request.auth.token.email.lower(); }
 
     match /settings/config {
       allow read: if isMember();
 
-      // Admins can change anything except leaving the household with no admin.
-      // Other members can only touch `members` (device tokens, notification
-      // prefs). No one can create the doc from the app: if it is ever lost,
+      // Only admins write settings, and never into a state with no admin.
+      // No one can create the doc from the app: if it is ever lost,
       // recreate it in the Firebase console (see SECURITY.md).
-      allow update: if
-        (isAdmin()
-          && request.resource.data.get('accessRoles', {}).values().hasAny(['admin']))
-        || (isMember()
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['members', 'updatedAt']));
+      allow update: if isAdmin()
+        && request.resource.data.get('accessRoles', {}).values().hasAny(['admin']);
+    }
+
+    // Push device tokens + notification-type choices, one doc per person,
+    // keyed by their own lowercased sign-in email (S1). A member may only
+    // read/write their own doc; an admin may read/write anyone's (e.g. to
+    // prune a departed member's devices from the Admin screen).
+    function validPrefs() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['fcmTokens', 'notifyTypes', 'updatedAt'])
+        && d.get('fcmTokens', []) is list && d.get('fcmTokens', []).size() <= 20
+        && d.get('notifyTypes', []) is list && d.get('notifyTypes', []).size() <= 12;
+    }
+    match /memberPrefs/{email} {
+      allow read: if isAdmin() || (isMember() && email == myEmail());
+      allow create, update: if (isAdmin() || (isMember() && email == myEmail())) && validPrefs();
+      allow delete: if isAdmin();
     }
 
     match /autoRecords/{id} {

@@ -21,8 +21,13 @@
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const {
-  daysUntil, shouldRemind, shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
+  daysUntil, torontoDatePlusDays, shouldRemind, shouldRemindOverdue, dayLabel,
+  isDeadTokenError, removeTokens,
 } = require('./reminder-logic');
+// Shared with index.html (Phase 2, B3): same recurrence rules server- and
+// client-side, so a recurring event reminds on exactly the days the
+// calendar itself says it recurs on.
+const { isRecurringOnDay, exceptionOverrideDates } = require('../recurrence');
 
 // ─── SMS Gateway Map ────────────────────────────────────────────
 // Free carrier email-to-SMS gateways — messages arrive as real SMS texts
@@ -114,21 +119,35 @@ async function sendSMS(transporter, toAddresses, subject, text) {
 // ─── Helpers ───────────────────────────────────────────────────
 // Dead-token pruning (S4). FCM tells us when a device token is permanently
 // invalid (app uninstalled, token rotated); keeping them only grows the list.
-// Runs in a transaction so a concurrent Admin-screen save is not overwritten.
-async function pruneDeadTokens(dead) {
+// Phase 2 (S1) moved device tokens off settings/config.members and into
+// memberPrefs/{email}, one doc per person, so pruning now happens there —
+// each affected member's own doc, each in its own transaction so a
+// concurrent Admin-screen or self-service save is never overwritten.
+async function pruneDeadTokens(dead, members) {
   if (!dead.size) return;
-  const ref = db.collection('settings').doc('config');
-  try {
-    const removed = await db.runTransaction(async tx => {
-      const snap = await tx.get(ref);
-      const result = removeTokens((snap.data() || {}).members, dead);
-      if (result.removed) tx.update(ref, { members: result.members });
-      return result.removed;
-    });
-    console.log(`  🧹 Pruned ${removed} dead device token(s)`);
-  } catch (err) {
-    console.warn(`  ⚠️  Could not prune dead tokens: ${err.message}`);
+  let removed = 0;
+  for (const m of members) {
+    const email = (m.email || '').toLowerCase();
+    if (!email) continue;
+    const toks = m.fcmTokens || [];
+    const hasDead = toks.some(t => dead.has(typeof t === 'object' && t ? t.token : t));
+    if (!hasDead) continue;
+    const ref = db.collection('memberPrefs').doc(email);
+    try {
+      const n = await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const result = removeTokens([{ fcmTokens: (snap.data() || {}).fcmTokens || [] }], dead);
+        if (result.removed) {
+          tx.set(ref, { fcmTokens: result.members[0].fcmTokens, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        }
+        return result.removed;
+      });
+      removed += n;
+    } catch (err) {
+      console.warn(`  ⚠️  Could not prune dead tokens for one member: ${err.message}`);
+    }
   }
+  console.log(`  🧹 Pruned ${removed} dead device token(s)`);
 }
 
 // ─── Main ──────────────────────────────────────────────────────
@@ -144,7 +163,33 @@ async function main() {
   if (reminderSettings.enabled === false) { console.log('ℹ️  Reminders disabled — exiting'); return; }
 
   const leadTimes = reminderSettings.leadTimes || [1, 7];
-  const members = config.members || [];
+  const rawMembers = config.members || [];
+
+  // 2. Fetch collections (+ memberPrefs) in parallel
+  const [autoSnap, homeSnap, eventsSnap, prefsSnap] = await Promise.all([
+    db.collection('autoRecords').get(),
+    db.collection('homeItems').get(),
+    db.collection('events').get(),
+    db.collection('memberPrefs').get(),
+  ]);
+
+  const autoRecords = autoSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const homeItems   = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const events      = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Phase 2 (S1): device tokens + notification-type choices moved off
+  // settings/config.members and into their own memberPrefs/{email} doc, one
+  // per person. Merge them back onto each member here — falling back to the
+  // old inline fields for anyone who hasn't triggered a migrating write yet
+  // (device registration, or an Admin save), so reminders keep working
+  // through the transition instead of silently going quiet.
+  const prefsByEmail = {};
+  prefsSnap.docs.forEach(d => { prefsByEmail[d.id] = d.data(); });
+  const members = rawMembers.map(m => {
+    const email = (m.email || '').toLowerCase();
+    const prefs = email ? prefsByEmail[email] : null;
+    return prefs ? { ...m, fcmTokens: prefs.fcmTokens || [], notifyTypes: prefs.notifyTypes || [] } : m;
+  });
 
   console.log(`  Lead times: ${leadTimes.join(', ')} days | Members: ${members.length}`);
 
@@ -160,25 +205,14 @@ async function main() {
   // SMS transporter
   const transporter = createTransporter();
 
-  // 2. Fetch collections in parallel
-  const [autoSnap, homeSnap, eventsSnap] = await Promise.all([
-    db.collection('autoRecords').get(),
-    db.collection('homeItems').get(),
-    db.collection('events').get(),
-  ]);
-
-  const autoRecords = autoSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const homeItems   = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const events      = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
   // 3. Build reminder list
   const reminders = [];
 
-  events.forEach(e => {
-    if (e.completed) return;
-    const d = daysUntil(e.date);
-    if (!shouldRemind(d, leadTimes)) return;
-
+  // Builds one reminder entry for event `e`'s occurrence that is `d` days out
+  // (0 = today). Recipient targeting (members/notifyTypes/notifyMembers) is
+  // identical whether `e` is a one-off event, a recurring series, or an
+  // exception doc overriding a single occurrence of one.
+  function buildEventReminder(e, d) {
     const evType = (e.type || '').toLowerCase();
     const eventMemberNames = new Set(
       e.members && e.members.length ? e.members : (e.member ? [e.member] : [])
@@ -220,6 +254,36 @@ async function main() {
       tokens,
       smsAddresses,
     });
+  }
+
+  // A single occurrence of a recurring series was moved or deleted: that date
+  // is represented either in `e.recurrence.exceptions` (deleted) or by a
+  // separate event doc with `recurringParentId === e.id` (moved/edited, with
+  // its own concrete `.date` — reminded about below like any other one-off).
+  // Either way the series itself must not also remind about that date.
+  events.forEach(e => {
+    if (e.completed || e.recurringParentId) return; // exception docs: handled in the plain pass below
+    if (!e.recurrence || !e.recurrence.type) return;
+
+    const overrides = exceptionOverrideDates(e.id, events);
+    const offsets = [...new Set([0, ...leadTimes])];
+    offsets.forEach(d => {
+      const ds = torontoDatePlusDays(d);
+      if (ds === null || overrides.has(ds)) return;
+      if (!isRecurringOnDay(e, ds)) return;
+      buildEventReminder(e, d);
+    });
+  });
+
+  // One-off events, and exception docs that override a single occurrence of
+  // a recurring series (they carry their own `.date`, same as any other
+  // event — B3 only changes how the *series* itself is reminded about).
+  events.forEach(e => {
+    if (e.completed) return;
+    if (e.recurrence && e.recurrence.type) return; // handled above
+    const d = daysUntil(e.date);
+    if (!shouldRemind(d, leadTimes)) return;
+    buildEventReminder(e, d);
   });
 
   autoRecords.forEach(r => {
@@ -296,7 +360,7 @@ async function main() {
     smsFailed += smsResult.failed;
   }
 
-  await pruneDeadTokens(deadTokens);
+  await pruneDeadTokens(deadTokens, members);
 
   console.log(`\n✅ Done — FCM: ${fcmSent} delivered / ${fcmFailed} failed | SMS: ${smsSent} sent / ${smsFailed} failed`);
 }

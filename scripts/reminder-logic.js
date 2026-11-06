@@ -30,6 +30,26 @@ function daysUntil(dateStr, now = new Date()) {
   return target - today;
 }
 
+// "YYYY-MM-DD" that is `n` calendar days after dateStr (n may be negative).
+// Pure Y-M-D epoch-day arithmetic (see dayNumber) — never local-time Date
+// math — so it agrees with daysUntil() regardless of the runner's timezone.
+function addDays(dateStr, n) {
+  const d = dayNumber(dateStr);
+  if (d === null) return null;
+  const dt = new Date((d + n) * 86400000);
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Toronto's "today" (per `now`), shifted by `n` calendar days. Used to turn a
+// lead-time offset (e.g. "1 day before") into a concrete date to check a
+// recurring event's pattern against (B3).
+function torontoDatePlusDays(n, now = new Date()) {
+  return addDays(torontoDateString(now), n);
+}
+
 // Remind on the day itself and on each configured lead time, exactly once.
 // (The old rule was `d <= lead`, which re-sent every morning for the whole
 // window: with lead times [1, 7] an item got up to 8 pushes and 8 texts.)
@@ -75,6 +95,6 @@ function removeTokens(members, dead) {
 }
 
 module.exports = {
-  TZ, torontoDateString, dayNumber, daysUntil, shouldRemind,
-  shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
+  TZ, torontoDateString, dayNumber, daysUntil, addDays, torontoDatePlusDays,
+  shouldRemind, shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
 };

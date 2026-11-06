@@ -65,6 +65,22 @@ test('isDeadTokenError only matches permanent token failures', () => {
   assert.equal(L.isDeadTokenError(undefined), false);
 });
 
+test('addDays is pure Y-M-D arithmetic, immune to DST and month/year rollover', () => {
+  assert.equal(L.addDays('2026-10-30', 2), '2026-11-01'); // crosses the Nov 1 DST change
+  assert.equal(L.addDays('2026-12-31', 1), '2027-01-01');
+  assert.equal(L.addDays('2026-03-05', -10), '2026-02-23');
+  assert.equal(L.addDays('garbage', 1), null);
+});
+
+test('torontoDatePlusDays offsets Toronto\'s "today", not UTC "today"', () => {
+  // 01:30 UTC on Oct 31 is still 9:30 pm Oct 30 in Toronto — "+1 day" from
+  // here must land on Oct 31, not Nov 1.
+  const lateEvening = new Date('2026-10-31T01:30:00Z');
+  assert.equal(L.torontoDatePlusDays(0, lateEvening), '2026-10-30');
+  assert.equal(L.torontoDatePlusDays(1, lateEvening), '2026-10-31');
+  assert.equal(L.torontoDatePlusDays(7, MORNING), '2026-11-06');
+});
+
 test('removeTokens handles string and object tokens and leaves others untouched', () => {
   const members = [
     { name: 'Ani', fcmTokens: ['a', { token: 'b', os: 'x' }, 'c'] },
