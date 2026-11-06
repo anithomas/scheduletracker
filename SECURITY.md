@@ -14,6 +14,17 @@ Roles live in Firestore at `settings/config`:
 - `authorizedUsers` — the list shown under **Admin → Family Members & Access**
 - `accessRoles` — `{ "email@lowercase": "role" }`, written by the app from
   `authorizedUsers` every time an admin saves. **The rules read this map.**
+- `members` — profile fields only (name, color, email, phone, role). Only an
+  admin can write `settings/config`, full stop.
+
+Each person's own push-device tokens and notification-type choices live
+separately, in `memberPrefs/{their lowercased sign-in email}` — one doc per
+person, readable/writable only by that person or an admin. They used to live
+inline on `settings/config.members`, where the rule only checked which
+top-level keys changed, so any signed-in member could in practice rewrite
+every other member's devices and names through that one array field. Moving
+them out is what makes "a viewer may only touch their own devices" actually
+true at the data layer, not just in the app's UI.
 
 Rules files: `firestore.rules`, `storage.rules`. Tests: `tests/rules/`
 (run automatically by the *Security rules tests* GitHub Action on any change).

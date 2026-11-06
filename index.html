@@ -1188,11 +1188,11 @@
             <div class="branding-row">
               <div class="form-group" style="width:64px;flex-shrink:0">
                 <label>Icon</label>
-                <input type="text" class="branding-emoji-input" id="cfgLogoEmoji" placeholder="🏠" maxlength="2" oninput="previewBranding()" />
+                <input type="text" class="branding-emoji-input" id="cfgLogoEmoji" placeholder="🏠" maxlength="2" oninput="previewBranding();markAdminFormDirty()" />
               </div>
               <div class="form-group" style="flex:1">
                 <label>App Name</label>
-                <input type="text" id="cfgAppName" placeholder="Family Household Tracker" oninput="previewBranding()" />
+                <input type="text" id="cfgAppName" placeholder="Family Household Tracker" oninput="previewBranding();markAdminFormDirty()" />
               </div>
             </div>
             <button class="btn btn-primary" style="width:100%" onclick="saveBranding()">💾 Save Branding</button>
@@ -1207,11 +1207,11 @@
           <div class="config-card-body">
             <div class="setting-row">
               <div><div class="setting-label">Default Tax Rate</div><div class="setting-desc">Applied to all new records (e.g. 13 for Ontario HST)</div></div>
-              <div class="setting-control"><input type="number" id="cfgTaxRate" value="13" min="0" max="30" step="0.5" /> %</div>
+              <div class="setting-control"><input type="number" id="cfgTaxRate" value="13" min="0" max="30" step="0.5" oninput="markAdminFormDirty()" /> %</div>
             </div>
             <div class="setting-row">
               <div><div class="setting-label">Currency Symbol</div><div class="setting-desc">Displayed before all dollar amounts</div></div>
-              <div class="setting-control"><input type="text" id="cfgCurrency" value="$" maxlength="3" style="width:48px" /></div>
+              <div class="setting-control"><input type="text" id="cfgCurrency" value="$" maxlength="3" style="width:48px" oninput="markAdminFormDirty()" /></div>
             </div>
             <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="saveTaxSettings()">💾 Save Settings</button>
           </div>
@@ -1779,6 +1779,12 @@
   </div>
 </div>
 
+<!-- Shared recurring-event rules (Phase 2, B3) — also used server-side by
+     scripts/send-reminders.js, so the calendar and the reminder job can
+     never disagree about which day a recurring event falls on. Exposes
+     isRecurringOnDay()/getNextOccurrence()/exceptionOverrideDates() as
+     globals since this is a plain script, not a module. -->
+<script src="recurrence.js"></script>
 <script>
 // ─── INIT ────────────────────────────────────────────────────
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -1973,26 +1979,38 @@ function autoRowVehicle(r) {
   return (v && v.emoji ? v.emoji : '🚗') + ' ' + (v ? vehicleDisplayName(v) : (r.vehicle || '—'));
 }
 
+// Applies a settings/config document (from either the one-time load or the
+// live listener below) to the in-memory model and re-renders. Pulled out of
+// loadSettings() so both share one code path (Phase 2, S2).
+function applyIncomingSettings(d){
+  if(!d) { applySettings(); return; }
+  if(d.appName) appConfig.appName=d.appName;
+  if(d.logoEmoji) appConfig.logoEmoji=d.logoEmoji;
+  if(d.defaultTaxRate!=null) appConfig.defaultTaxRate=d.defaultTaxRate;
+  if(d.currency) appConfig.currency=d.currency;
+  if(d.vehicles&&d.vehicles.length) appVehicles=d.vehicles;
+  if(d.members&&d.members.length) appMembers=d.members;
+  if(d.homeCategories&&d.homeCategories.length) homeCategories=d.homeCategories;
+  if(d.serviceTypes&&d.serviceTypes.length) serviceTypes=d.serviceTypes;
+  if(d.eventTypes&&d.eventTypes.length) eventTypes=d.eventTypes;
+  if(d.authorizedUsers) appConfig.authorizedUsers=d.authorizedUsers;
+  if(d.reminderSettings) appConfig.reminderSettings={...appConfig.reminderSettings,...d.reminderSettings};
+  applySettings();
+}
+
 async function loadSettings(){
   try{
     const doc=await db.collection('settings').doc('config').get();
-    if(doc.exists){
-      const d=doc.data();
-      if(d.appName) appConfig.appName=d.appName;
-      if(d.logoEmoji) appConfig.logoEmoji=d.logoEmoji;
-      if(d.defaultTaxRate!=null) appConfig.defaultTaxRate=d.defaultTaxRate;
-      if(d.currency) appConfig.currency=d.currency;
-      if(d.vehicles&&d.vehicles.length) appVehicles=d.vehicles;
-      if(d.members&&d.members.length) appMembers=d.members;
-      if(d.homeCategories&&d.homeCategories.length) homeCategories=d.homeCategories;
-      if(d.serviceTypes&&d.serviceTypes.length) serviceTypes=d.serviceTypes;
-      if(d.eventTypes&&d.eventTypes.length) eventTypes=d.eventTypes;
-      if(d.authorizedUsers) appConfig.authorizedUsers=d.authorizedUsers;
-      if(d.reminderSettings) appConfig.reminderSettings={...appConfig.reminderSettings,...d.reminderSettings};
-    }
-    applySettings();
+    applyIncomingSettings(doc.exists?doc.data():null);
   } catch(e){ console.warn('Settings load error',e); applySettings(); }
 }
+
+// Set while the branding/tax/currency fields below have unsaved local edits,
+// so a snapshot from the live settings listener (S2) — e.g. another admin
+// saving a change on a different device — can never silently overwrite
+// keystrokes this tab hasn't saved yet. Cleared once saveSettings() succeeds.
+let _adminFormDirty=false;
+function markAdminFormDirty(){ _adminFormDirty=true; }
 
 function applySettings(){
   const appNameEls=document.querySelectorAll('.app-name-dynamic');
@@ -2001,10 +2019,12 @@ function applySettings(){
   logoEls.forEach(el=>el.textContent=appConfig.logoEmoji);
   document.getElementById('brandingPreviewEmoji').textContent=appConfig.logoEmoji;
   document.getElementById('brandingPreviewName').textContent=appConfig.appName;
-  document.getElementById('cfgAppName').value=appConfig.appName;
-  document.getElementById('cfgLogoEmoji').value=appConfig.logoEmoji;
-  document.getElementById('cfgTaxRate').value=appConfig.defaultTaxRate;
-  document.getElementById('cfgCurrency').value=appConfig.currency||'$';
+  if(!_adminFormDirty){
+    document.getElementById('cfgAppName').value=appConfig.appName;
+    document.getElementById('cfgLogoEmoji').value=appConfig.logoEmoji;
+    document.getElementById('cfgTaxRate').value=appConfig.defaultTaxRate;
+    document.getElementById('cfgCurrency').value=appConfig.currency||'$';
+  }
   document.title=appConfig.appName;
   rebuildVehicleDropdowns();
   rebuildMemberDropdowns();
@@ -2038,15 +2058,6 @@ function sameAccessRoles(a,b){
   return ka.length===kb.length && ka.every(k=>a[k]===(b||{})[k]);
 }
 
-// Self-service writes (own devices / notification prefs) touch only `members`,
-// which is all non-admins are allowed to change under firestore.rules.
-async function saveMembersOnly(){
-  await db.collection('settings').doc('config').update({
-    members:appMembers,
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
-  });
-}
-
 async function saveSettings(){
   await db.collection('settings').doc('config').set({
     appName:appConfig.appName,
@@ -2064,6 +2075,63 @@ async function saveSettings(){
     reminderSettings:appConfig.reminderSettings||{enabled:true,leadTimes:[1,7]},
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
+  _adminFormDirty=false;
+}
+
+// ─── MEMBER PREFS (push devices + notification-type choices) ──────────────
+// Phase 2, S1: this used to live inline on settings/config.members, where any
+// signed-in member could write the *whole* members array — not just their
+// own entry — because the old rule only checked which top-level
+// settings/config keys changed. It now lives in its own memberPrefs/{email}
+// doc, one per person, which firestore.rules lets a member read/write only
+// for their own (lowercased) sign-in email; an admin may read/write anyone's.
+let memberPrefsMap={}; // lowercased email -> {fcmTokens, notifyTypes}
+
+// A member's current device/notification prefs, merged from memberPrefs —
+// falling back to the legacy inline settings/config.members fields for
+// anyone who hasn't triggered a write (and so a migration) since this
+// shipped, so no one's already-registered devices appear to vanish.
+function prefsFor(member){
+  const email=(member?.email||'').toLowerCase();
+  if(email && memberPrefsMap[email]) return memberPrefsMap[email];
+  return { fcmTokens:member?.fcmTokens||[], notifyTypes:member?.notifyTypes||[] };
+}
+
+// Writes a patch (fcmTokens and/or notifyTypes) to one person's memberPrefs
+// doc — never to settings/config, so this can never touch anyone else's
+// data. `email` may be the signed-in user's own, or (admin only) another
+// member's.
+async function writeMemberPrefs(email, patchFn){
+  const key=(email||'').toLowerCase();
+  if(!key) throw new Error('No email on file for this member');
+  const cur=memberPrefsMap[key]||{fcmTokens:[],notifyTypes:[]};
+  const patch=patchFn(cur);
+  await db.collection('memberPrefs').doc(key).set(
+    {...patch, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},
+    {merge:true}
+  );
+  memberPrefsMap[key]={...cur,...patch}; // optimistic; the listener confirms it
+}
+
+// Live memberPrefs updates (Phase 2, S2) — an admin gets every member's
+// prefs (device counts on the Admin screen); everyone else gets only their
+// own doc, which is all firestore.rules lets a non-admin list/read.
+function startPrefsListener(){
+  if(currentUserRole==='admin'){
+    return db.collection('memberPrefs').onSnapshot(s=>{
+      const next={};
+      s.forEach(d=>{ next[d.id]=d.data(); });
+      memberPrefsMap=next;
+      renderAdminMembers();
+      if(document.getElementById('myProfileModal')?.classList.contains('open')) _renderMyProfileDevices(_myProfileMember());
+    }, err=>console.warn('memberPrefs listener error',err));
+  }
+  const email=(auth.currentUser?.email||'').toLowerCase();
+  if(!email) return ()=>{};
+  return db.collection('memberPrefs').doc(email).onSnapshot(snap=>{
+    memberPrefsMap[email]=snap.exists?snap.data():{fcmTokens:[],notifyTypes:[]};
+    if(document.getElementById('myProfileModal')?.classList.contains('open')) _renderMyProfileDevices(_myProfileMember());
+  }, err=>console.warn('memberPrefs listener error',err));
 }
 
 function rebuildVehicleDropdowns(){
@@ -2093,7 +2161,7 @@ function buildEventMemberPicker(selectedMembers, notifyMembers){
   const evType=(document.getElementById('cType')?.value||'').toLowerCase();
   const autoNotify=new Set(selectedMembers);
   appMembers.forEach(m=>{
-    const nt=m.notifyTypes||[];
+    const nt=prefsFor(m).notifyTypes||[];
     if(nt.includes('all')||(evType&&nt.includes(evType))) autoNotify.add(m.name);
   });
   // If notifyMembers passed, union with auto
@@ -2278,7 +2346,7 @@ function renderAdminMembers(){
   const ROLE_BADGE={admin:'<span class="role-badge" style="background:#f9efd9;color:#96690f">👑 Admin</span>',contributor:'<span class="role-badge" style="background:#e4e8f0;color:#0b1f3a">✏️ Contributor</span>',viewer:'<span class="role-badge" style="background:#e3f3ea;color:#1f6f4a">👁 Viewer</span>',denied:'<span class="role-badge" style="background:#fbe9e3;color:#a03d24">🚫 Denied</span>'};
   list.innerHTML=appMembers.map(m=>{
     const role=m.role||'contributor';
-    const deviceCount=(m.fcmTokens||[]).length;
+    const deviceCount=prefsFor(m).fcmTokens.length;
     const meta=[];
     if(m.email) meta.push(`📧 ${m.email}`);
     if(m.phone) meta.push(`📞 ${m.phone}`);
@@ -2321,7 +2389,7 @@ function openAdminMemberModal(id){
   if(m && devSection){
     devSection.style.display='block';
     // Render per-device rows
-    const tokens=m.fcmTokens||[];
+    const tokens=prefsFor(m).fcmTokens;
     const dlEl=document.getElementById('mcDeviceList');
     if(dlEl) dlEl.innerHTML=_deviceListHTML(tokens,'_removeAdminDeviceToken');
     // Register btn — show always; async check will hide if current device already registered
@@ -2329,7 +2397,7 @@ function openAdminMemberModal(id){
     if(regBtn) regBtn.style.display='inline-flex';
     _updateMemberDeviceBtnState(m);
     // Populate notifyTypes checkboxes
-    const nt=m.notifyTypes||[];
+    const nt=prefsFor(m).notifyTypes;
     const isAll=nt.includes('all');
     const notifyAllEl=document.getElementById('mcNotifyAll');
     if(notifyAllEl) notifyAllEl.checked=isAll;
@@ -2348,7 +2416,7 @@ async function _updateMemberDeviceBtnState(m){
     if(!messaging) return;
     const swReg=await navigator.serviceWorker.ready;
     const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
-    const isReg=token&&(m.fcmTokens||[]).some(d=>(d.token||d)===token);
+    const isReg=token&&prefsFor(m).fcmTokens.some(d=>(d.token||d)===token);
     const regBtn=document.getElementById('mcRegisterBtn');
     // Hide "Register" button if this device is already registered
     if(regBtn) regBtn.style.display=isReg?'none':'inline-flex';
@@ -2361,17 +2429,17 @@ function _removeAdminDeviceToken(token, btn){
   removeSpecificDeviceToken(memberId, token, btn);
 }
 
-// Remove one specific FCM token from a member's device list
+// Remove one specific FCM token from a member's device list (admin — writes
+// that member's own memberPrefs doc, Phase 2 S1, not settings/config).
 async function removeSpecificDeviceToken(memberId, token, btn){
-  const idx=appMembers.findIndex(x=>x.id===memberId);
-  if(idx<0){toast('Member not found');return;}
+  const m=appMembers.find(x=>x.id===memberId);
+  if(!m){toast('Member not found');return;}
+  if(!m.email){toast('⚠️ This member has no email on file');return;}
   try{
     if(btn) btn.disabled=true;
-    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>(t.token||t)!==token);
-    await saveSettings();
-    const m=appMembers[idx];
+    await writeMemberPrefs(m.email, cur=>({fcmTokens:(cur.fcmTokens||[]).filter(t=>(t.token||t)!==token)}));
     const dlEl=document.getElementById('mcDeviceList');
-    if(dlEl) dlEl.innerHTML=_deviceListHTML(m.fcmTokens||[],'_removeAdminDeviceToken');
+    if(dlEl) dlEl.innerHTML=_deviceListHTML(prefsFor(m).fcmTokens,'_removeAdminDeviceToken');
     _updateMemberDeviceBtnState(m);
     renderAdminMembers();
     toast('🗑 Device removed');
@@ -2398,7 +2466,7 @@ function openMyProfile(){
   document.getElementById('mpEmail').textContent=user?.email||'';
   _renderMyProfileDevices(m);
   // Populate notify checkboxes
-  const nt=m?.notifyTypes||[];
+  const nt=prefsFor(m).notifyTypes;
   const isAll=nt.includes('all');
   const allEl=document.getElementById('mpNotifyAll');
   if(allEl) allEl.checked=isAll;
@@ -2410,7 +2478,7 @@ function openMyProfile(){
 }
 
 function _renderMyProfileDevices(m){
-  const tokens=(m?.fcmTokens)||[];
+  const tokens=prefsFor(m).fcmTokens;
   const dlEl=document.getElementById('mpDeviceList');
   if(!dlEl) return;
   dlEl.innerHTML=_deviceListHTML(tokens,'removeMyDeviceToken');
@@ -2440,13 +2508,11 @@ async function registerMyDevice(){
     if(perm!=='granted'){toast('⚠️ Notifications blocked — please allow in browser settings');return;}
     const sw=await navigator.serviceWorker.ready;
     const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw});
-    const idx=appMembers.findIndex(x=>x.id===m.id);
-    const existing=appMembers[idx].fcmTokens||[];
+    const existing=prefsFor(m).fcmTokens;
     if(existing.some(d=>(d.token||d)===token)){toast('✅ This device is already registered');return;}
     const info=getDeviceInfo();
-    appMembers[idx].fcmTokens=[...existing,{token,browser:info.browser,os:info.os,icon:info.icon,registeredAt:new Date().toISOString()}];
-    await saveMembersOnly();
-    _renderMyProfileDevices(appMembers[idx]);
+    await writeMemberPrefs(m.email, cur=>({fcmTokens:[...(cur.fcmTokens||[]),{token,browser:info.browser,os:info.os,icon:info.icon,registeredAt:new Date().toISOString()}]}));
+    _renderMyProfileDevices(m);
     toast('✅ Device registered for push notifications!');
   }catch(e){toast('⚠️ Registration failed: '+e.message);}
 }
@@ -2454,13 +2520,10 @@ async function registerMyDevice(){
 async function removeMyDeviceToken(token, btn){
   const m=_myProfileMember();
   if(!m) return;
-  const idx=appMembers.findIndex(x=>x.id===m.id);
-  if(idx<0) return;
   try{
     if(btn) btn.disabled=true;
-    appMembers[idx].fcmTokens=(appMembers[idx].fcmTokens||[]).filter(t=>(t.token||t)!==token);
-    await saveMembersOnly();
-    _renderMyProfileDevices(appMembers[idx]);
+    await writeMemberPrefs(m.email, cur=>({fcmTokens:(cur.fcmTokens||[]).filter(t=>(t.token||t)!==token)}));
+    _renderMyProfileDevices(m);
     toast('🗑 Device removed');
   }catch(e){toast('⚠️ Failed: '+e.message);if(btn) btn.disabled=false;}
 }
@@ -2468,12 +2531,9 @@ async function removeMyDeviceToken(token, btn){
 async function saveMyProfile(){
   const m=_myProfileMember();
   if(!m){toast('⚠️ Profile not found');return;}
-  const idx=appMembers.findIndex(x=>x.id===m.id);
-  if(idx<0) return;
   const isAll=document.getElementById('mpNotifyAll')?.checked;
   const notifyTypes=isAll?['all']:[...document.querySelectorAll('.mp-notify-type:checked')].map(c=>c.value);
-  appMembers[idx].notifyTypes=notifyTypes;
-  try { await saveMembersOnly(); }
+  try { await writeMemberPrefs(m.email, ()=>({notifyTypes})); }
   catch(e) { toast('⚠️ Could not save: '+e.message); return; }
   toast('✅ Notification preferences saved');
   closeModal('myProfileModal');
@@ -2492,9 +2552,8 @@ async function saveAdminMember(){
   const _email=(document.getElementById('mcEmail')?.value.trim()||'').toLowerCase();
   const _phone=document.getElementById('mcPhone')?.value.trim()||'';
   const _role=document.getElementById('mcRole')?.value||'contributor';
-  // Preserve existing fcmTokens when editing
-  const existing=id?appMembers.find(x=>x.id===id):null;
-  // Collect notifyTypes
+  // Collect notifyTypes — written to memberPrefs below, not to this profile
+  // object (Phase 2, S1: devices/notifyTypes no longer live on settings/config).
   const _notifyAll=document.getElementById('mcNotifyAll')?.checked;
   const _notifyTypes=_notifyAll?['all']:[...document.querySelectorAll('.mc-notify-type:checked')].map(c=>c.value);
   const m={
@@ -2505,8 +2564,6 @@ async function saveAdminMember(){
     email:_email,
     phone:_phone,
     role:_role,
-    fcmTokens:existing?.fcmTokens||[],
-    notifyTypes:_notifyTypes
   };
   if(!m.name){toast('⚠️ Name is required');return;}
   if(_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_email)){toast('⚠️ Enter a valid email address');return;}
@@ -2528,6 +2585,10 @@ async function saveAdminMember(){
     appConfig.authorizedUsers=users;
   }
   await saveSettings();
+  if(_email){
+    try { await writeMemberPrefs(_email, ()=>({notifyTypes:_notifyTypes})); }
+    catch(e) { toast('⚠️ Member saved, but notification types failed: '+e.message); }
+  }
   applySettings();
   closeModal('adminMemberModal');
   toast('✅ Member saved!');
@@ -2554,7 +2615,7 @@ async function registerCurrentMemberDevice(){
   // Refresh button state
   const m=appMembers.find(x=>x.id===id);
   if(m) _updateMemberDeviceBtnState(m);
-  const count=(appMembers.find(x=>x.id===id)?.fcmTokens||[]).length;
+  const count=m?prefsFor(m).fcmTokens.length:0;
   document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet.';
 }
 
@@ -2564,7 +2625,7 @@ async function unregisterCurrentMemberDevice(){
   await unregisterDeviceForMember(id);
   const m=appMembers.find(x=>x.id===id);
   if(m) _updateMemberDeviceBtnState(m);
-  const count=(appMembers.find(x=>x.id===id)?.fcmTokens||[]).length;
+  const count=m?prefsFor(m).fcmTokens.length:0;
   document.getElementById('mcDeviceStatusText').textContent=count>0?`${count} device${count>1?'s':''} registered for push notifications on this member.`:'No devices registered yet.';
 }
 
@@ -2633,6 +2694,9 @@ function initFCM() {
   } catch(e) { console.warn('FCM init error', e); }
 }
 
+// Admin registers THIS browser's device for a chosen member (who may be the
+// admin themself, or someone else being helped at their own device). Writes
+// that member's own memberPrefs doc (Phase 2, S1) — never settings/config.
 async function registerDeviceForMember(memberId) {
   try {
     if (!messaging) { toast('⚠️ Push notifications not supported in this browser'); return; }
@@ -2641,17 +2705,17 @@ async function registerDeviceForMember(memberId) {
     const swReg = await navigator.serviceWorker.ready;
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if (!token) { toast('⚠️ Could not get device token'); return; }
-    const idx = appMembers.findIndex(m => m.id === memberId);
-    if (idx < 0) return;
-    const existing = appMembers[idx].fcmTokens || [];
+    const m = appMembers.find(x => x.id === memberId);
+    if (!m) return;
+    if (!m.email) { toast('⚠️ This member has no email on file'); return; }
+    const existing = prefsFor(m).fcmTokens;
     if (!existing.some(d => (d.token||d) === token)) {
       const info = getDeviceInfo();
-      appMembers[idx].fcmTokens = [...existing, {token, browser:info.browser, os:info.os, icon:info.icon, registeredAt:new Date().toISOString()}];
-      await saveSettings();
+      await writeMemberPrefs(m.email, cur => ({fcmTokens: [...(cur.fcmTokens||[]), {token, browser:info.browser, os:info.os, icon:info.icon, registeredAt:new Date().toISOString()}]}));
       renderAdminMembers();
-      toast('✅ Device registered for ' + appMembers[idx].name + '!');
+      toast('✅ Device registered for ' + m.name + '!');
     } else {
-      toast('ℹ️ This device is already registered for ' + appMembers[idx].name);
+      toast('ℹ️ This device is already registered for ' + m.name);
     }
   } catch(e) { toast('⚠️ Registration failed: ' + e.message); }
 }
@@ -2662,12 +2726,11 @@ async function unregisterDeviceForMember(memberId) {
     const swReg = await navigator.serviceWorker.ready;
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if (!token) return;
-    const idx = appMembers.findIndex(m => m.id === memberId);
-    if (idx < 0) return;
-    appMembers[idx].fcmTokens = (appMembers[idx].fcmTokens || []).filter(t => (t.token||t) !== token);
-    await saveSettings();
+    const m = appMembers.find(x => x.id === memberId);
+    if (!m || !m.email) return;
+    await writeMemberPrefs(m.email, cur => ({fcmTokens: (cur.fcmTokens||[]).filter(t => (t.token||t) !== token)}));
     renderAdminMembers();
-    toast('🗑 Device unregistered for ' + appMembers[idx].name);
+    toast('🗑 Device unregistered for ' + m.name);
   } catch(e) { toast('⚠️ Unregister failed: ' + e.message); }
 }
 
@@ -3137,6 +3200,10 @@ function startListeners() {
     events = s.docs.map(d=>({id:d.id,...d.data()}));
     renderCalendar(); renderSummary(); maybeCheckReminders('events');
   }, onListenError('events')));
+  unsubs.push(db.collection('settings').doc('config').onSnapshot(snap=>{
+    if(snap.exists) applyIncomingSettings(snap.data());
+  }, onListenError('settings')));
+  unsubs.push(startPrefsListener());
   initFCM();
 }
 
@@ -3790,63 +3857,11 @@ async function delHome(id){
 
 // ─── CALENDAR ──────────────────────────────────────
 
-// Returns the next occurrence date (YYYY-MM-DD) of a recurring event on or after fromDs,
-// searching up to maxDays ahead. Returns null if none found.
-function getNextOccurrence(e, fromDs, maxDays = 90) {
-  if (!e.recurrence || !e.recurrence.type) return null;
-  const fromD = new Date(fromDs + 'T00:00:00');
-  for (let i = 0; i <= maxDays; i++) {
-    const d = new Date(fromD); d.setDate(d.getDate() + i);
-    const ds = toDs(d);
-    if (isRecurringOnDay(e, ds)) return ds;
-  }
-  return null;
-}
-
-// Returns true if a recurring event (with recurrence config) falls on date string ds
-function isRecurringOnDay(e, ds) {
-  if (!e.recurrence || !e.recurrence.type) return false;
-  const start = e.date;
-  if (!start || ds < start) return false;
-  if (e.recurrence.endDate && ds > e.recurrence.endDate) return false;
-  // Check if this date is in the exceptions list on the event itself
-  const exceptions = e.recurrence.exceptions || [];
-  if (exceptions.includes(ds)) return false;
-
-  const startD = new Date(start + 'T00:00:00');
-  const checkD = new Date(ds   + 'T00:00:00');
-  const diffMs   = checkD - startD;
-  const diffDays = Math.round(diffMs / 86400000);
-
-  if (e.recurrence.type === 'daily') {
-    const interval = e.recurrence.interval || 1;
-    return diffDays >= 0 && diffDays % interval === 0;
-  }
-  if (e.recurrence.type === 'weekly') {
-    if (diffDays < 0) return false;
-    const interval  = e.recurrence.interval || 1;
-    const diffWeeks = Math.floor(diffDays / 7);
-    if (diffWeeks % interval !== 0) return false;
-    const daysOfWeek = e.recurrence.daysOfWeek && e.recurrence.daysOfWeek.length
-      ? e.recurrence.daysOfWeek
-      : [startD.getDay()];
-    return daysOfWeek.includes(checkD.getDay());
-  }
-  if (e.recurrence.type === 'monthly') {
-    const interval  = e.recurrence.interval || 1;
-    const startM    = startD.getFullYear() * 12 + startD.getMonth();
-    const checkM    = checkD.getFullYear() * 12 + checkD.getMonth();
-    const diffM     = checkM - startM;
-    if (diffM < 0 || diffM % interval !== 0) return false;
-    // Clamp to the last day of the target month: an event on the 31st should
-    // still fire on Feb 28/29, Apr 30, etc. rather than silently skipping
-    // every month that has no such day number.
-    const daysInCheckMonth = new Date(checkD.getFullYear(), checkD.getMonth() + 1, 0).getDate();
-    const targetDay = Math.min(startD.getDate(), daysInCheckMonth);
-    return checkD.getDate() === targetDay;
-  }
-  return false;
-}
+// getNextOccurrence() and isRecurringOnDay() now come from recurrence.js
+// (loaded as a plain <script> above this one, Phase 2 B3) — the same file
+// scripts/send-reminders.js requires server-side, so the calendar and the
+// daily reminder job can never disagree about which day a recurring event
+// falls on.
 
 function eventsOnDay(ds) {
   const result = [];

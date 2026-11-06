@@ -117,18 +117,75 @@ test('admin cannot leave the household with no admin', async () => {
     accessRoles: { 'ani@example.com': 'viewer' },
   }));
 });
-test('non-admins can update only members', async () => {
+test('only admins can update settings/config at all (S1) — not even `members`', async () => {
   for (const who of ['contributor', 'viewer']) {
-    await assertSucceeds(updateDoc(doc(db(as(who)), 'settings/config'), {
-      members: [{ id: 'm1', name: 'Ani', fcmTokens: ['t'] }], updatedAt: serverTimestamp(),
+    await assertFails(updateDoc(doc(db(as(who)), 'settings/config'), {
+      members: [{ id: 'm1', name: 'Hacked' }], updatedAt: serverTimestamp(),
     }));
     await assertFails(updateDoc(doc(db(as(who)), 'settings/config'), { appName: 'Hacked' }));
   }
+  await assertSucceeds(updateDoc(doc(db(as('admin')), 'settings/config'), {
+    members: [{ id: 'm1', name: 'Ani' }], updatedAt: serverTimestamp(),
+  }));
 });
 test('viewer cannot grant themselves admin', async () => {
   await assertFails(updateDoc(doc(db(as('viewer')), 'settings/config'), {
     accessRoles: { ...CONFIG.accessRoles, 'rachel@example.com': 'admin' },
   }));
+});
+
+// ---------- memberPrefs (per-person devices + notification prefs, S1) ----------
+test('a member can read and write only their own memberPrefs doc', async () => {
+  const viewer = db(as('viewer'));
+  await assertSucceeds(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: ['tok-1'], notifyTypes: ['medical'], updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(getDoc(doc(viewer, 'memberPrefs/rachel@example.com')));
+  await assertFails(getDoc(doc(viewer, 'memberPrefs/anju@example.com')));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/anju@example.com'), {
+    fcmTokens: ['attacker-device'], notifyTypes: [], updatedAt: serverTimestamp(),
+  }));
+});
+test('a viewer cannot rewrite another member\'s devices or notifyTypes (the old S1 hole)', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'memberPrefs/anju@example.com'), { fcmTokens: ['real-device'], notifyTypes: [] });
+  });
+  await assertFails(updateDoc(doc(db(as('viewer')), 'memberPrefs/anju@example.com'), {
+    fcmTokens: [], notifyTypes: [],
+  }));
+});
+test('admin can read and write anyone\'s memberPrefs', async () => {
+  const admin = db(as('admin'));
+  await assertSucceeds(setDoc(doc(admin, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: ['all'], updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(getDoc(doc(admin, 'memberPrefs/rachel@example.com')));
+  await assertSucceeds(deleteDoc(doc(admin, 'memberPrefs/rachel@example.com')));
+});
+test('a non-admin cannot delete even their own memberPrefs doc', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'memberPrefs/rachel@example.com'), { fcmTokens: [], notifyTypes: [] });
+  });
+  await assertFails(deleteDoc(doc(db(as('viewer')), 'memberPrefs/rachel@example.com')));
+});
+test('memberPrefs rejects extra fields and oversized arrays', async () => {
+  const viewer = db(as('viewer'));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], role: 'admin', // smuggled extra field
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: Array.from({ length: 21 }, (_, i) => 'tok-' + i), notifyTypes: [],
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: Array.from({ length: 13 }, (_, i) => 'type-' + i),
+  }));
+});
+test('strangers and signed-out users get nothing from memberPrefs', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'memberPrefs/rachel@example.com'), { fcmTokens: [], notifyTypes: [] });
+  });
+  await assertFails(getDoc(doc(db(as('stranger')), 'memberPrefs/rachel@example.com')));
+  await assertFails(getDoc(doc(db(env.unauthenticatedContext()), 'memberPrefs/rachel@example.com')));
 });
 
 // ---------- data collections ----------

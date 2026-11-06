@@ -1,0 +1,26 @@
+name: Reminder script tests
+
+on:
+  push:
+    paths:
+      - 'scripts/**'
+      - 'recurrence.js'
+      - '.github/workflows/scripts-test.yml'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'recurrence.js'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm test
