@@ -93,3 +93,41 @@ test('removeTokens handles string and object tokens and leaves others untouched'
   assert.equal(next[1], members[1]); // same object: unchanged
   assert.equal(next[2], members[2]);
 });
+
+test('buildWeeklyDigest summarizes counts, with overdue called out only when present', () => {
+  const noOverdue = L.buildWeeklyDigest(
+    [{ icon: '📅', title: 'Dentist', date: '2026-11-17' }, { icon: '📅', title: 'Soccer', date: '2026-11-18' }, { icon: '📅', title: 'Haircut', date: '2026-11-19' }],
+    [{ icon: '🚗', title: 'Oil change', date: '2026-11-16' }],
+    [],
+  );
+  assert.equal(noOverdue.summary, '📅 This week: 3 appointments, 1 item due');
+  assert.equal(noOverdue.hasAny, true);
+
+  const withOverdue = L.buildWeeklyDigest(
+    [],
+    [],
+    [{ icon: '🏡', title: 'Furnace filter', date: '2026-11-10' }],
+  );
+  assert.equal(withOverdue.summary, '📅 This week: 0 appointments, 0 items due, 1 overdue');
+});
+
+test('buildWeeklyDigest pluralizes correctly and lists overdue items first', () => {
+  const d = L.buildWeeklyDigest(
+    [{ icon: '📅', title: 'Dentist', date: '2026-11-17' }],
+    [{ icon: '🚗', title: 'Oil change', date: '2026-11-16' }, { icon: '🏡', title: 'Gutters', date: '2026-11-18' }],
+    [{ icon: '🏡', title: 'Furnace filter', date: '2026-11-10' }],
+  );
+  assert.equal(d.summary, '📅 This week: 1 appointment, 2 items due, 1 overdue');
+  assert.deepEqual(d.detailLines, [
+    '🏡 Furnace filter — 2026-11-10',
+    '📅 Dentist — 2026-11-17',
+    '🚗 Oil change — 2026-11-16',
+    '🏡 Gutters — 2026-11-18',
+  ]);
+});
+
+test('buildWeeklyDigest reports hasAny=false and no digest needed when the week is empty', () => {
+  const empty = L.buildWeeklyDigest([], [], []);
+  assert.equal(empty.hasAny, false);
+  assert.equal(empty.summary, '📅 This week: 0 appointments, 0 items due');
+});

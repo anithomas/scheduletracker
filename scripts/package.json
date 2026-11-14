@@ -6,6 +6,7 @@
   "main": "send-reminders.js",
   "scripts": {
     "send-reminders": "node send-reminders.js",
+    "weekly-digest": "node weekly-digest.js",
     "test": "node --test reminder-logic.test.js recurrence.test.js"
   },
   "dependencies": {
