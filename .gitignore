@@ -5,6 +5,9 @@ node_modules/
 android/
 www/
 
+# Vite build output (Phase 3 / R4)
+dist/
+
 # Environment / secrets (never commit these)
 .env
 .env.*

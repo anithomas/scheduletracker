@@ -1,9 +1,21 @@
 name: Build Android APK
 
+# R6 (Phase 3): this used to run on every push to main, which meant every
+# ordinary commit — a copy fix, a CSS tweak — spent several minutes building
+# a full Android APK whether or not anyone needed one. The APK is only ever
+# pulled off the Actions run manually anyway, so this now builds only when
+# someone asks for it directly (workflow_dispatch) or on a version tag
+# (push a `v*` tag to cut a release build), plus the one trigger that's hard
+# to remember by hand: Android-only files changing (capacitor.config.json,
+# this workflow itself).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    paths:
+      - 'capacitor.config.json'
+      - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
@@ -28,13 +40,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare web assets
+      # Phase 3 (R4): the web app is now a Vite build (TypeScript modules,
+      # not one inline <script>) — the Android WebView needs the compiled
+      # dist/ output, not the raw source files `cp`'d straight into www/.
+      - name: Build web assets
+        run: npm run build
+
+      - name: Prepare web assets for Capacitor
         run: |
           mkdir -p www
-          cp index.html www/
-          cp manifest.json www/ 2>/dev/null || true
-          cp sw.js www/ 2>/dev/null || true
-          cp *.png www/ 2>/dev/null || true
+          cp -r dist/. www/
 
       - name: Add Android platform
         run: npx cap add android
