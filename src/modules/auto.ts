@@ -43,7 +43,23 @@ export function renderAuto() {
       </div>`;
     }).join('');
 
-  document.getElementById('autoBody')!.innerHTML=autoRecords.map(r=>`
+  // Search + vehicle filter (Phase 4, F3) — scoped to this table only; the
+  // stats row and vehicle cards above still reflect every record.
+  const _aSearch=((document.getElementById('autoSearch') as HTMLInputElement)?.value||'').trim().toLowerCase();
+  const _aVehFilter=(document.getElementById('autoFilterVehicle') as HTMLSelectElement)?.value||'';
+  const filteredAutoRecords=autoRecords.filter(r=>{
+    if(_aVehFilter){
+      const veh=getVehicleForRecord(r);
+      if((r.vehicleId||(veh&&veh.id))!==_aVehFilter) return false;
+    }
+    if(_aSearch){
+      const hay=[autoRowVehicle(r),r.service,r.notes,r.assignedTo].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(_aSearch)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('autoBody')!.innerHTML=filteredAutoRecords.map(r=>`
     <tr>
       <td><div class="td-main">${esc(autoRowVehicle(r))}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
       <td><div class="td-main">${esc(r.service)}</div></td>
@@ -59,7 +75,9 @@ export function renderAuto() {
         <button class="btn-icon btn-edit" onclick="editAuto('${escJs(r.id)}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${escJs(r.id)}')"  title="Delete">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`;
+    </tr>`).join('')||(autoRecords.length
+    ? `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔍</div><p>No records match your search/filter</p></div></td></tr>`
+    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`);
 }
 
 export async function saveAuto() {
