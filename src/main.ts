@@ -25,7 +25,8 @@ import {
   delAdminVehicle, openAdminMemberModal, saveAdminMember, delAdminMember,
   toggleNotifyAll, toggleMpNotifyAll, openMyProfile, saveMyProfile,
   registerMyDevice, registerCurrentMemberDevice, unregisterCurrentMemberDevice,
-  removeSpecificDeviceToken,
+  removeSpecificDeviceToken, removeMyDeviceToken,
+  enableMyCalendarFeed, revokeMyCalendarFeed, copyMyCalendarFeedUrl,
 } from './modules/member-prefs';
 import { saveReminderSettings } from './modules/notifications';
 import {
@@ -88,7 +89,8 @@ Object.assign(window, {
   delAdminVehicle, openAdminMemberModal, saveAdminMember, delAdminMember,
   toggleNotifyAll, toggleMpNotifyAll, openMyProfile, saveMyProfile,
   registerMyDevice, registerCurrentMemberDevice, unregisterCurrentMemberDevice,
-  removeSpecificDeviceToken,
+  removeSpecificDeviceToken, removeMyDeviceToken,
+  enableMyCalendarFeed, revokeMyCalendarFeed, copyMyCalendarFeedUrl,
   // notifications.ts
   saveReminderSettings,
   // admin-catalog.ts
