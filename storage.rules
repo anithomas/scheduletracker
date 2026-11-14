@@ -2,8 +2,14 @@ rules_version = '2';
 
 // Family Household Tracker — Cloud Storage rules for receipt/attachment uploads.
 // Roles come from the same settings/config.accessRoles map as firestore.rules.
-// Note: files are linked in records by download URL, and anyone holding a
-// download URL can open that file; these rules govern SDK access and uploads.
+// Phase 3 (S3): records now store the Storage *path*, not a minted download
+// URL — the app calls getDownloadURL() lazily when a file is actually
+// opened, so these `read` rules are checked on every open, not just once at
+// upload time. (Records saved before this change still hold an old-style
+// download URL; the app opens those directly, same as always — anyone
+// holding one of those older URLs can still open that file regardless of
+// their current role, since a URL minted under the old scheme carries its
+// own access token rather than going through these rules.)
 service firebase.storage {
   match /b/{bucket}/o {
 

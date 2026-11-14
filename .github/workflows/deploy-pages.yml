@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+# Phase 3 (R4): index.html used to be served as-is straight from main's repo
+# root. Now the app is a Vite build (TypeScript modules), so there's a build
+# step between "push to main" and "what the browser gets" — this workflow is
+# that step, publishing dist/ instead of the repo root.
+#
+# ⚠️ One-time manual step required before this can go live: in this repo's
+# Settings → Pages, change "Source" from "Deploy from a branch" to "GitHub
+# Actions". Until that's done, Pages keeps serving the old branch-root setup
+# and this workflow's deployments won't be visible at tracker.logicmanse.ca.
+# (Not applied automatically — see the Phase 3 PR description for why.)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
