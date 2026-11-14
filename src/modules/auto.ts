@@ -46,7 +46,7 @@ export function renderAuto() {
   document.getElementById('autoBody')!.innerHTML=autoRecords.map(r=>`
     <tr>
       <td><div class="td-main">${esc(autoRowVehicle(r))}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
-      <td><div class="td-main">${esc(r.service)}</div></td>
+      <td><div class="td-main">${esc(r.service)}</div>${r.assignedTo?`<div class="td-sub">👤 ${esc(r.assignedTo)}</div>`:''}</td>
       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
       <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
       <td class="col-odo"><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
@@ -93,6 +93,7 @@ export async function saveAuto() {
       vehicleId:_aVehicle,
       vehicle:(appVehicles.find(v=>v.id===_aVehicle)||{} as any).name||_aVehicle,
       service:_aService,
+      assignedTo:(document.getElementById('aAssignee') as HTMLSelectElement)?.value||null, // Phase 4, F7
       lastDate:_aLast,
       nextDate:_aNext,
       mileage:(document.getElementById('aMileage') as HTMLInputElement).value,
@@ -128,6 +129,7 @@ export function editAuto(id: string){
   (document.getElementById('autoEditId') as HTMLInputElement).dataset.existingUrls=JSON.stringify(aAllUrls);
   (document.getElementById('aVehicle') as HTMLSelectElement).value=r.vehicleId||(getVehicleForRecord(r)&&(getVehicleForRecord(r) as any).id)||r.vehicle;
   (document.getElementById('aService') as HTMLInputElement).value=r.service;
+  const aAssigneeEl=document.getElementById('aAssignee') as HTMLSelectElement; if(aAssigneeEl) aAssigneeEl.value=r.assignedTo||'';
   (document.getElementById('aLastDate') as HTMLInputElement).value=r.lastDate||'';
   (document.getElementById('aNextDate') as HTMLInputElement).value=r.nextDate||'';
   (document.getElementById('aMileage') as HTMLInputElement).value=r.mileage||'';

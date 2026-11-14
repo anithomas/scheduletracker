@@ -22,7 +22,7 @@ const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const {
   daysUntil, torontoDatePlusDays, shouldRemind, shouldRemindOverdue, dayLabel,
-  isDeadTokenError, removeTokens,
+  isDeadTokenError, removeTokens, resolveAssigneeTargets,
 } = require('./reminder-logic');
 // Shared with index.html (Phase 2, B3): same recurrence rules server- and
 // client-side, so a recurring event reminds on exactly the days the
@@ -291,12 +291,14 @@ async function main() {
     const d = daysUntil(r.nextDate);
     if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
     const vehicle = r.vehicleName || r.vehicle || '';
+    // Phase 4, F7: an assigned owner is reminded alone; unassigned (or an
+    // owner with no devices/SMS gateway registered yet) still reminds everyone.
+    const { tokens, smsAddresses } = resolveAssigneeTargets(r.assignedTo, memberTokens, allTokens, SMS_GATEWAYS, ALL_SMS_ADDRESSES);
     reminders.push({
       icon: d < 0 ? '⚠️' : '🚗',
       title: `${r.service}${vehicle ? ' — ' + vehicle : ''}`,
-      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
-      tokens: allTokens,
-      smsAddresses: ALL_SMS_ADDRESSES,
+      body: `${d < 0 ? dayLabel(d) : 'Due: ' + dayLabel(d)}${r.assignedTo ? ' · ' + r.assignedTo : ''}`,
+      tokens, smsAddresses,
     });
   });
 
@@ -304,12 +306,12 @@ async function main() {
     if (h.completed) return;
     const d = daysUntil(h.nextDate);
     if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
+    const { tokens, smsAddresses } = resolveAssigneeTargets(h.assignedTo, memberTokens, allTokens, SMS_GATEWAYS, ALL_SMS_ADDRESSES);
     reminders.push({
       icon: d < 0 ? '⚠️' : '🏡',
       title: h.item || h.description || 'Home maintenance',
-      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
-      tokens: allTokens,
-      smsAddresses: ALL_SMS_ADDRESSES,
+      body: `${d < 0 ? dayLabel(d) : 'Due: ' + dayLabel(d)}${h.assignedTo ? ' · ' + h.assignedTo : ''}`,
+      tokens, smsAddresses,
     });
   });
 

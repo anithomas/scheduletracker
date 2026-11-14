@@ -94,7 +94,27 @@ function removeTokens(members, dead) {
   return { members: next, removed };
 }
 
+// Phase 4, F7 — auto/home items can be assigned to one member ("remind only
+// them" instead of the whole family). Resolves which FCM tokens and SMS
+// addresses to notify for a given `assignedTo` name, falling back to
+// everyone — independently per channel, same as the long-standing event
+// targeting in send-reminders.js — whenever there's nothing assignee-specific
+// to send to: no assignee at all, an assignee with no registered devices yet
+// (push falls back), or an assignee with no SMS gateway entry (SMS falls
+// back). That keeps a newly-assigned item reminding the whole family exactly
+// as it always did until that person actually registers a device or SMS
+// number, instead of going silent.
+function resolveAssigneeTargets(assignedTo, memberTokens, allTokens, smsGateways, allSmsAddresses) {
+  if (!assignedTo) return { tokens: allTokens, smsAddresses: allSmsAddresses };
+  const own = (memberTokens || {})[assignedTo];
+  const tokens = own && own.length ? own : allTokens;
+  const gateway = (smsGateways || {})[assignedTo];
+  const smsAddresses = gateway ? [gateway] : allSmsAddresses;
+  return { tokens, smsAddresses };
+}
+
 module.exports = {
   TZ, torontoDateString, dayNumber, daysUntil, addDays, torontoDatePlusDays,
   shouldRemind, shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
+  resolveAssigneeTargets,
 };
