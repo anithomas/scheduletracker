@@ -53,9 +53,14 @@ service cloud.firestore {
     // prune a departed member's devices from the Admin screen).
     function validPrefs() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['fcmTokens', 'notifyTypes', 'updatedAt'])
+      // updatedBy (Phase 4, F10) is a display name, not a trust decision —
+      // it's informational only (the Activity report), so a stale or even
+      // spoofed value here can't grant access to anything; still size-capped
+      // alongside everything else for hygiene.
+      return d.keys().hasOnly(['fcmTokens', 'notifyTypes', 'updatedBy', 'updatedAt'])
         && d.get('fcmTokens', []) is list && d.get('fcmTokens', []).size() <= 20
-        && d.get('notifyTypes', []) is list && d.get('notifyTypes', []).size() <= 12;
+        && d.get('notifyTypes', []) is list && d.get('notifyTypes', []).size() <= 12
+        && d.get('updatedBy', '') is string && d.get('updatedBy', '').size() <= 100;
     }
     match /memberPrefs/{email} {
       allow read: if isAdmin() || (isMember() && email == myEmail());

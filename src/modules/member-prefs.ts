@@ -40,8 +40,11 @@ export async function writeMemberPrefs(email: string, patchFn: (cur: any) => any
   if(!key) throw new Error('No email on file for this member');
   const cur=memberPrefsMap[key]||{fcmTokens:[],notifyTypes:[]};
   const patch=patchFn(cur);
+  // Phase 4, F10: stamp who actually made the change, not just when — the
+  // actor may be this member themselves, or (device-removal, notifyTypes)
+  // an admin editing someone else's doc from the Admin screen.
   await db.collection('memberPrefs').doc(key).set(
-    {...patch, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},
+    {...patch, updatedBy:auth.currentUser?.displayName||'', updatedAt:firebase.firestore.FieldValue.serverTimestamp()},
     {merge:true}
   );
   memberPrefsMap[key]={...cur,...patch}; // optimistic; the listener confirms it
