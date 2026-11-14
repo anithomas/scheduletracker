@@ -189,7 +189,7 @@ test('strangers and signed-out users get nothing from memberPrefs', async () => 
 });
 
 // ---------- data collections ----------
-for (const col of ['events', 'autoRecords', 'homeItems']) {
+for (const col of ['events', 'autoRecords', 'homeItems', 'renewals']) {
   test(`${col}: contributor and admin can create/update/delete`, async () => {
     for (const who of ['contributor', 'admin']) {
       const c = db(as(who));

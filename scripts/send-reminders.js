@@ -166,16 +166,18 @@ async function main() {
   const rawMembers = config.members || [];
 
   // 2. Fetch collections (+ memberPrefs) in parallel
-  const [autoSnap, homeSnap, eventsSnap, prefsSnap] = await Promise.all([
+  const [autoSnap, homeSnap, eventsSnap, renewalsSnap, prefsSnap] = await Promise.all([
     db.collection('autoRecords').get(),
     db.collection('homeItems').get(),
     db.collection('events').get(),
+    db.collection('renewals').get(),
     db.collection('memberPrefs').get(),
   ]);
 
   const autoRecords = autoSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const homeItems   = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const events      = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const renewalItems = renewalsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
   // Phase 2 (S1): device tokens + notification-type choices moved off
   // settings/config.members and into their own memberPrefs/{email} doc, one
@@ -307,6 +309,23 @@ async function main() {
     reminders.push({
       icon: d < 0 ? '⚠️' : '🏡',
       title: h.item || h.description || 'Home maintenance',
+      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
+      tokens: allTokens,
+      smsAddresses: ALL_SMS_ADDRESSES,
+    });
+  });
+
+  // Renewals (Phase 4, F2) — the proposal calls for a fixed 30/7-day reminder
+  // cadence specifically, independent of whatever lead times the household
+  // has configured in reminderSettings for auto/home items.
+  const RENEWAL_LEAD_TIMES = [30, 7];
+  renewalItems.forEach(r => {
+    if (r.completed) return;
+    const d = daysUntil(r.nextDate);
+    if (!shouldRemind(d, RENEWAL_LEAD_TIMES) && !shouldRemindOverdue(d)) return;
+    reminders.push({
+      icon: d < 0 ? '⚠️' : '🔖',
+      title: r.title || 'Renewal',
       body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
       tokens: allTokens,
       smsAddresses: ALL_SMS_ADDRESSES,

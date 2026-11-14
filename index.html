@@ -952,6 +952,7 @@
     <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
     <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> <span class="nl-long">Auto Maintenance</span><span class="nl-short">Auto</span></button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> <span class="nl-long">Home Schedules</span><span class="nl-short">Home</span></button>
+    <button onclick="showSection('renewals',this)"><span class="nav-icon">🔖</span> Renewals</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
     <button onclick="showSection('about',this)"><span class="nav-icon">✨</span> About</button>
@@ -1002,6 +1003,28 @@
               <th>Last Done</th><th>Next Due</th><th>Cost (w/ Tax)</th><th>Status</th><th class="col-progress">Progress</th><th></th>
             </tr></thead>
             <tbody id="homeBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RENEWALS (Phase 4, F2) -->
+    <div id="renewals" class="section">
+      <div class="section-header">
+        <h2>🔖 Renewals</h2>
+        <p>Insurance, licences, plate stickers and warranties — never miss an expiry</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔖 Tracked Renewals</div>
+          <button class="btn btn-primary rbac-add" onclick="openModal('renewalModal')">+ Add Renewal</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Title</th><th>Category</th><th>For</th><th>Expiry</th><th>Renews</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="renewalBody"></tbody>
           </table>
         </div>
       </div>
@@ -1450,6 +1473,7 @@
     <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span>Calendar</button>
     <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span>Auto</button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span>Home</button>
+    <button onclick="showSection('renewals',this)"><span class="nav-icon">🔖</span>Renewals</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span>Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
     <button onclick="showSection('about',this)"><span class="nav-icon">✨</span>About</button>
@@ -1691,6 +1715,53 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('homeModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveHome()">💾 Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENEWAL MODAL (Phase 4, F2) -->
+<div class="modal-overlay" id="renewalModal">
+  <div class="modal">
+    <div class="modal-title"><div class="title-icon home">🔖</div> Renewal</div>
+    <input type="hidden" id="renewalEditId" />
+    <div class="form-row">
+      <div class="form-group"><label>Title</label><input type="text" id="rwTitle" placeholder="e.g. Civic Insurance" /></div>
+      <div class="form-group"><label>Category</label>
+        <select id="rwCategory">
+          <option value="insurance">🛡️ Insurance</option>
+          <option value="licence">🪪 Licence</option>
+          <option value="plate">🚘 Plate Sticker</option>
+          <option value="warranty">📄 Warranty</option>
+          <option value="other">🔖 Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Vehicle (optional)</label><select id="rwVehicle"></select></div>
+      <div class="form-group"><label>Assigned To (optional)</label><select id="rwAssignee"></select></div>
+      <div class="form-group"><label>Last Renewed (optional)</label><input type="date" id="rwLastDate" /></div>
+      <div class="form-group"><label>Expiry Date</label><input type="date" id="rwNextDate" /></div>
+    </div>
+    <div class="form-group">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="rwAuto" style="width:auto" onchange="toggleRenewalAuto(this)" /> Renews automatically
+      </label>
+    </div>
+    <div class="form-row" id="rwIntervalWrap" style="display:none">
+      <div class="form-group">
+        <label>Renewal Interval</label>
+        <div class="dur-row">
+          <input type="number" id="rwDurVal" placeholder="e.g. 1" min="1" value="1" />
+          <select id="rwDurUnit"><option value="months">Months</option><option value="years" selected>Years</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="rwNotes" placeholder="What it covers, who to call to renew..."></textarea>
+      <div style="font-size:.73rem;color:var(--gray-400);margin-top:4px">🔒 Don't store policy, licence or ID numbers here — just the date and what it's for.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('renewalModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRenewal()">💾 Save Renewal</button>
     </div>
   </div>
 </div>
