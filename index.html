@@ -1066,7 +1066,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">🚗 Auto Service Spend</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportAutoReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
@@ -1098,7 +1101,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">🏡 Home Maintenance Spend</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportHomeReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
@@ -1130,7 +1136,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">📅 Calendar Report</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportCalReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
