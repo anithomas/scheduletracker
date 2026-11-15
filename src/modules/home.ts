@@ -10,7 +10,7 @@ import { isRecurring, markDone } from './mark-done';
 export function renderHome(){
   document.getElementById('homeBody')!.innerHTML=homeItems.map(h=>`
     <tr>
-      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.notes?`<div class="td-sub">${esc(h.notes)}</div>`:''}</td>
+      <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.notes?`<div class="td-sub">${esc(h.notes)}</div>`:''}${h.assignedTo?`<div class="td-sub">👤 ${esc(h.assignedTo)}</div>`:''}</td>
       <td><span class="type-badge type-general">${esc(h.category)}</span></td>
       <td>${esc(h.durVal?durLabel(h.durVal,h.durUnit):freqLabel(h.freq))}</td>
       <td>${fmt(h.lastDate)}</td>

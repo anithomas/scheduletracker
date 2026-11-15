@@ -80,6 +80,10 @@ export function rebuildMemberDropdowns(){
   const opts=appMembers.map(m=>`<option value="${m.name}">${memberDisplayName(m)}</option>`).join('');
   const rfm=document.getElementById('rfMember') as HTMLSelectElement;
   if(rfm){const cur=rfm.value;rfm.innerHTML='<option value="">All Members</option>'+opts+'<option value="All">All</option>';if(cur)rfm.value=cur;}
+  // Auto/Home "Assigned To" selects (Phase 4, F7) — unassigned (the default)
+  // reminds the whole family, same as before this existed.
+  const assigneeOpts='<option value="">👨‍👩‍👧‍👦 Unassigned (reminds everyone)</option>'+opts;
+  ['aAssignee','hAssignee'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=assigneeOpts;if(cur)el.value=cur;}});
   // Build multi-member checkbox picker for event modal
   buildEventMemberPicker([],[]);
 }
