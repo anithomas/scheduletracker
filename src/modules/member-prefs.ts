@@ -83,6 +83,10 @@ export function rebuildMemberDropdowns(){
   // Upcoming-events table filter (Phase 4, F3)
   const ufm=document.getElementById('upcomingFilterMember') as HTMLSelectElement;
   if(ufm){const cur=ufm.value;ufm.innerHTML='<option value="">All Members</option>'+opts;if(cur)ufm.value=cur;}
+  // Auto/Home "Assigned To" selects (Phase 4, F7) — unassigned (the default)
+  // reminds the whole family, same as before this existed.
+  const assigneeOpts='<option value="">👨‍👩‍👧‍👦 Unassigned (reminds everyone)</option>'+opts;
+  ['aAssignee','hAssignee'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=assigneeOpts;if(cur)el.value=cur;}});
   // Build multi-member checkbox picker for event modal
   buildEventMemberPicker([],[]);
 }

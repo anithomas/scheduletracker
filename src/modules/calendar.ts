@@ -97,7 +97,10 @@ export function renderCalendar(){
       return;
     }
     if (e.recurrence && e.recurrence.type) {
-      const nextDs = getNextOccurrence(e, _upYestDs, 90);
+      // Yearly events (birthdays, anniversaries) can be up to ~365 days out;
+      // a 90-day window would make them vanish from "Upcoming" most of the year.
+      const lookahead = e.recurrence.type === 'yearly' ? 400 : 90;
+      const nextDs = getNextOccurrence(e, _upYestDs, lookahead);
       if (nextDs) _upItems.push({...e, _displayDate: nextDs});
     } else {
       if (e.date && e.date >= _upYestDs) _upItems.push({...e, _displayDate: e.date});
