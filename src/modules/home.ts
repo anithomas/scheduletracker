@@ -8,7 +8,19 @@ import { fileIcon, openAttachmentLink } from './file-upload';
 import { isRecurring, markDone } from './mark-done';
 
 export function renderHome(){
-  document.getElementById('homeBody')!.innerHTML=homeItems.map(h=>`
+  // Search + category filter (Phase 4, F3).
+  const _hSearch=((document.getElementById('homeSearch') as HTMLInputElement)?.value||'').trim().toLowerCase();
+  const _hCatFilter=(document.getElementById('homeFilterCategory') as HTMLSelectElement)?.value||'';
+  const filteredHomeItems=homeItems.filter(h=>{
+    if(_hCatFilter && h.category!==_hCatFilter) return false;
+    if(_hSearch){
+      const hay=[h.item,h.notes,h.assignedTo].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(_hSearch)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('homeBody')!.innerHTML=filteredHomeItems.map(h=>`
     <tr>
       <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.notes?`<div class="td-sub">${esc(h.notes)}</div>`:''}${h.assignedTo?`<div class="td-sub">👤 ${esc(h.assignedTo)}</div>`:''}</td>
       <td><span class="type-badge type-general">${esc(h.category)}</span></td>
@@ -24,7 +36,9 @@ export function renderHome(){
         <button class="btn-icon btn-edit" onclick="editHome('${escJs(h.id)}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delHome('${escJs(h.id)}')"  title="Delete">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏡</div><p>No home items yet</p></div></td></tr>`;
+    </tr>`).join('')||(homeItems.length
+    ? `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔍</div><p>No items match your search/filter</p></div></td></tr>`
+    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏡</div><p>No home items yet</p></div></td></tr>`);
 }
 
 export function freqLabel(f: string){return({'30':'Monthly','60':'Every 2 Mo','90':'Quarterly','180':'6 Months','365':'Yearly'} as Record<string,string>)[f]||'Custom';}

@@ -39,11 +39,11 @@ import './modules/utils';
 import { showSection, fabAction } from './modules/section-nav';
 import { updateHst, overrideTotal, updateKm, updateHomeDuration } from './modules/tax';
 import { previewFile, openAttachmentLink } from './modules/file-upload';
-import { saveAuto, editAuto, delAuto, toggleAutoDone } from './modules/auto';
-import { toggleHomeDone } from './modules/home';
+import { saveAuto, editAuto, delAuto, toggleAutoDone, renderAuto } from './modules/auto';
+import { toggleHomeDone, renderHome } from './modules/home';
 import { saveHome, editHome, delHome } from './modules/mark-done';
 import {
-  changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions,
+  changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions, renderCalendar,
 } from './modules/calendar';
 import {
   confirmDeleteEvent, deleteFromModal, runDeleteChoice, toggleEventDone,
@@ -65,11 +65,11 @@ Object.assign(window, {
   // file-upload.ts
   previewFile, openAttachmentLink,
   // auto.ts
-  saveAuto, editAuto, delAuto, toggleAutoDone,
+  saveAuto, editAuto, delAuto, toggleAutoDone, renderAuto,
   // home.ts / mark-done.ts
-  toggleHomeDone, saveHome, editHome, delHome,
+  toggleHomeDone, saveHome, editHome, delHome, renderHome,
   // calendar.ts
-  changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions,
+  changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions, renderCalendar,
   // delete-event.ts
   confirmDeleteEvent, deleteFromModal, runDeleteChoice, toggleEventDone,
   // gcal-sync.ts
