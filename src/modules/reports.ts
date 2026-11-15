@@ -27,6 +27,7 @@ export function showReport(id: string, btn: HTMLElement){
   if(id==='rHome') renderReportHome();
   if(id==='rCal')  renderReportCal();
   if(id==='rSummary') renderSummary();
+  if(id==='rActivity') renderReportActivity();
 }
 
 export function renderSummary(){
@@ -250,4 +251,77 @@ export function renderReportCal(){
 export function exportCalReportCsv(){
   downloadCsv(`calendar-events-report-${todayDs()}.csv`,
     toCsv(['Date','Time','Title','Member','Type','Location','Notes'], _calExportRows));
+}
+
+// ─── ACTIVITY (Phase 4, F10) ────────────────────────────────────
+// "Anju marked oil change done" — assembled entirely from data every record
+// already carries (updatedBy/updatedAt on the record itself, plus the {by,
+// at} on each entry in auto/home's own `history` array from markDone() in
+// mark-done.ts). No new collection, no new writes: this is a read-only view
+// over what's already there, which is also why it needs no Firestore rule
+// changes — it's exactly as readable as the records it's built from.
+type ActivityEntry = { icon: string; text: string; ts: number };
+
+// updatedAt arrives as a Firestore Timestamp once the server echo lands, but
+// can briefly be the serverTimestamp() sentinel (no toMillis/toDate yet) on a
+// record this tab just wrote — skip those rather than mis-sorting them to
+// the epoch. history[].at is already a plain ISO string from mark-done.ts.
+function activityMillis(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  if (ts instanceof Date) return ts.getTime();
+  const n = Date.parse(ts);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function relTime(ms: number): string {
+  if (!ms) return '';
+  const diff = Date.now() - ms;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 14) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export function renderReportActivity() {
+  const entries: ActivityEntry[] = [];
+
+  autoRecords.forEach(r => {
+    const label = r.service || 'a service record';
+    if (r.updatedBy) entries.push({ icon: '🚗', text: `${r.updatedBy} updated ${label}`, ts: activityMillis(r.updatedAt) });
+    (r.history || []).forEach((h: any) => {
+      if (h.by) entries.push({ icon: '✅', text: `${h.by} marked ${label} done`, ts: activityMillis(h.at) });
+    });
+  });
+
+  homeItems.forEach(h => {
+    const label = h.item || 'a home item';
+    if (h.updatedBy) entries.push({ icon: '🏡', text: `${h.updatedBy} updated ${label}`, ts: activityMillis(h.updatedAt) });
+    (h.history || []).forEach((entry: any) => {
+      if (entry.by) entries.push({ icon: '✅', text: `${entry.by} marked ${label} done`, ts: activityMillis(entry.at) });
+    });
+  });
+
+  events.forEach(e => {
+    if (e.updatedBy) entries.push({ icon: '📅', text: `${e.updatedBy} updated ${e.title || 'an event'}`, ts: activityMillis(e.updatedAt) });
+  });
+
+  entries.sort((a, b) => b.ts - a.ts);
+  const top = entries.filter(e => e.ts > 0).slice(0, 50);
+
+  const el = document.getElementById('activityList');
+  if (!el) return;
+  el.innerHTML = top.length
+    ? top.map(e => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100)">
+        <span style="font-size:1.1rem;flex-shrink:0">${e.icon}</span>
+        <div style="flex:1;min-width:0"><div style="font-size:.86rem;color:var(--gray-700)">${esc(e.text)}</div></div>
+        <div style="font-size:.74rem;color:var(--gray-400);flex-shrink:0">${relTime(e.ts)}</div>
+      </div>`).join('')
+    : `<div class="empty-state"><div class="empty-icon">🕐</div><p>No activity recorded yet</p></div>`;
 }

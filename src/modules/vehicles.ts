@@ -1,5 +1,5 @@
 // ─── VEHICLE LOOKUP HELPERS ───────────────────────────────────
-import { db, firebase } from './firebase-init';
+import { db, auth, firebase } from './firebase-init';
 import { vehicleDisplayName } from './display-names';
 import {
   appConfig, appVehicles, appMembers, homeCategories, serviceTypes, eventTypes, currentUserRole,
@@ -131,6 +131,7 @@ export async function saveSettings(){
     authorizedEmails:(appConfig.authorizedUsers||[]).map((u: any)=>u.email).filter(Boolean),
     accessRoles:buildAccessRoles(appConfig.authorizedUsers),
     reminderSettings:appConfig.reminderSettings||{enabled:true,leadTimes:[1,7]},
+    updatedBy:auth.currentUser?.displayName||'',
     updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
   },{merge:true});
   _adminFormDirty=false;

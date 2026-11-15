@@ -180,6 +180,18 @@ test('memberPrefs rejects extra fields and oversized arrays', async () => {
     fcmTokens: [], notifyTypes: Array.from({ length: 13 }, (_, i) => 'type-' + i),
   }));
 });
+test('memberPrefs accepts updatedBy (Phase 4, F10) but rejects a non-string or oversized one', async () => {
+  const viewer = db(as('viewer'));
+  await assertSucceeds(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], updatedBy: 'Rachel', updatedAt: serverTimestamp(),
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], updatedBy: 12345,
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], updatedBy: 'x'.repeat(101),
+  }));
+});
 test('memberPrefs allows a member to set their own icsFeedToken', async () => {
   const viewer = db(as('viewer'));
   await assertSucceeds(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {

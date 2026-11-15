@@ -1094,6 +1094,7 @@
         <button class="report-tab" onclick="showReport('rAuto',this)">🚗 Auto Spend</button>
         <button class="report-tab" onclick="showReport('rHome',this)">🏡 Home Spend</button>
         <button class="report-tab" onclick="showReport('rCal',this)">📅 Calendar</button>
+        <button class="report-tab" onclick="showReport('rActivity',this)">🕐 Activity</button>
       </div>
 
       <div id="rSummary" class="report-panel active">
@@ -1211,6 +1212,17 @@
               <tbody id="calReportBody"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY (Phase 4, F10) -->
+      <div id="rActivity" class="report-panel">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🕐 Recent Activity</div>
+          </div>
+          <p style="font-size:.82rem;color:var(--gray-400);margin:-6px 0 14px">Who did what, most recent first — pulled from the "updated by" on every record plus each item's own done-history.</p>
+          <div id="activityList"></div>
         </div>
       </div>
 
