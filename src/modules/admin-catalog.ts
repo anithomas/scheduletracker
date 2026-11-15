@@ -77,11 +77,12 @@ export function renderAdminEventTypes(){
 }
 
 export function rebuildEventTypeDropdown(){
+  const opts=eventTypes.map(t=>`<option value="${esc(t.value)}">${esc(t.emoji)} ${esc(t.label)}</option>`).join('');
   const el=document.getElementById('cType') as HTMLSelectElement;
-  if(!el) return;
-  const cur=el.value;
-  el.innerHTML=eventTypes.map(t=>`<option value="${esc(t.value)}">${esc(t.emoji)} ${esc(t.label)}</option>`).join('');
-  if(cur) el.value=cur;
+  if(el){const cur=el.value;el.innerHTML=opts;if(cur) el.value=cur;}
+  // Upcoming-events table "All Types" filter (Phase 4, F3)
+  const uft=document.getElementById('upcomingFilterType') as HTMLSelectElement;
+  if(uft){const cur=uft.value;uft.innerHTML='<option value="">All Types</option>'+opts;if(cur) uft.value=cur;}
 }
 
 export async function addEventType(){

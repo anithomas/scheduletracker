@@ -972,6 +972,10 @@
           <div class="card-title">📋 All Service Records</div>
           <button class="btn btn-primary rbac-add" onclick="openModal('autoModal')">+ Add Record</button>
         </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 14px">
+          <input type="text" id="autoSearch" placeholder="🔍 Search service, vehicle, notes…" style="flex:2;min-width:180px" oninput="renderAuto()" />
+          <select id="autoFilterVehicle" onchange="renderAuto()" style="min-width:140px"><option value="">All Vehicles</option></select>
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr>
@@ -994,6 +998,10 @@
         <div class="card-header">
           <div class="card-title">🔧 Maintenance Items</div>
           <button class="btn btn-primary rbac-add" onclick="openModal('homeModal')">+ Add Item</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 14px">
+          <input type="text" id="homeSearch" placeholder="🔍 Search item, notes…" style="flex:2;min-width:180px" oninput="renderHome()" />
+          <select id="homeFilterCategory" onchange="renderHome()" style="min-width:140px"></select>
         </div>
         <div class="table-wrap">
           <table>
@@ -1035,6 +1043,13 @@
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px">📋 Upcoming Events</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+          <input type="text" id="upcomingSearch" placeholder="🔍 Search title, location, notes…" style="flex:2;min-width:180px" oninput="renderCalendar()" />
+          <select id="upcomingFilterMember" onchange="renderCalendar()" style="min-width:130px"><option value="">All Members</option></select>
+          <select id="upcomingFilterType" onchange="renderCalendar()" style="min-width:130px"><option value="">All Types</option></select>
+          <input type="date" id="upcomingFilterFrom" onchange="renderCalendar()" style="min-width:120px" title="From date" />
+          <input type="date" id="upcomingFilterTo" onchange="renderCalendar()" style="min-width:120px" title="To date" />
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th>Repeat</th><th>Status</th><th></th></tr></thead>
@@ -1602,6 +1617,7 @@
     <div class="form-row">
       <div class="form-group"><label>Vehicle</label><select id="aVehicle"></select></div>
       <div class="form-group"><label>Service Type</label><select id="aService"></select></div>
+      <div class="form-group"><label>👤 Assigned To <span style="font-weight:400;color:var(--gray-400)">(optional — reminds just them)</span></label><select id="aAssignee"></select></div>
       <div class="form-group"><label>Last Done Date</label><input type="date" id="aLastDate" /></div>
       <div class="form-group"><label>Next Due Date</label><input type="date" id="aNextDate" /></div>
       <div class="form-group"><label>Current Odometer (km)</label><input type="number" id="aMileage" placeholder="e.g. 45000" oninput="updateKm()" /></div>
@@ -1659,6 +1675,7 @@
     <div class="form-row">
       <div class="form-group"><label>Item Name</label><input type="text" id="hItem" placeholder="e.g. HVAC Filter" /></div>
       <div class="form-group"><label>Category</label><select id="hCategory"></select></div>
+      <div class="form-group"><label>👤 Assigned To <span style="font-weight:400;color:var(--gray-400)">(optional — reminds just them)</span></label><select id="hAssignee"></select></div>
       <div class="form-group">
         <label>Service Interval</label>
         <div class="dur-row">
@@ -1745,6 +1762,7 @@
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly (same date)</option>
+          <option value="yearly">Yearly (birthdays, anniversaries, renewals)</option>
         </select>
       </div>
       <div class="form-group" id="recurEndGroup" style="display:none">
