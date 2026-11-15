@@ -180,6 +180,24 @@ test('memberPrefs rejects extra fields and oversized arrays', async () => {
     fcmTokens: [], notifyTypes: Array.from({ length: 13 }, (_, i) => 'type-' + i),
   }));
 });
+test('memberPrefs allows a member to set their own icsFeedToken', async () => {
+  const viewer = db(as('viewer'));
+  await assertSucceeds(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], icsFeedToken: 'a'.repeat(64), updatedAt: serverTimestamp(),
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/anju@example.com'), {
+    fcmTokens: [], notifyTypes: [], icsFeedToken: 'attacker-token',
+  }));
+});
+test('memberPrefs rejects a non-string or oversized icsFeedToken', async () => {
+  const viewer = db(as('viewer'));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], icsFeedToken: 12345,
+  }));
+  await assertFails(setDoc(doc(viewer, 'memberPrefs/rachel@example.com'), {
+    fcmTokens: [], notifyTypes: [], icsFeedToken: 'x'.repeat(101),
+  }));
+});
 test('strangers and signed-out users get nothing from memberPrefs', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'memberPrefs/rachel@example.com'), { fcmTokens: [], notifyTypes: [] });
@@ -189,7 +207,7 @@ test('strangers and signed-out users get nothing from memberPrefs', async () => 
 });
 
 // ---------- data collections ----------
-for (const col of ['events', 'autoRecords', 'homeItems']) {
+for (const col of ['events', 'autoRecords', 'homeItems', 'renewals']) {
   test(`${col}: contributor and admin can create/update/delete`, async () => {
     for (const who of ['contributor', 'admin']) {
       const c = db(as(who));

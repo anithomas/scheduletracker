@@ -4,9 +4,10 @@ import { openModal } from './modal';
 
 // FAB config per section (mobile only)
 const FAB_CONFIG: Record<string, { label: string; title: string; modal: string }> = {
-  calendar: { label:'📅', title:'Add Event',   modal:'calModal'  },
-  auto:     { label:'🚗', title:'Add Record',  modal:'autoModal' },
-  home:     { label:'🏡', title:'Add Item',    modal:'homeModal' },
+  calendar:  { label:'📅', title:'Add Event',    modal:'calModal'    },
+  auto:      { label:'🚗', title:'Add Record',   modal:'autoModal'   },
+  home:      { label:'🏡', title:'Add Item',     modal:'homeModal'   },
+  renewals:  { label:'🔖', title:'Add Renewal',  modal:'renewalModal' },
 };
 let _currentSection = 'calendar';
 

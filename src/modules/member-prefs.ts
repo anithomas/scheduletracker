@@ -1,6 +1,6 @@
 // ─── MEMBER PREFS (push devices + notification-type choices) ──────────────
 import { db, auth, firebase } from './firebase-init';
-import { esc } from './html-escape';
+import { esc, escJs } from './html-escape';
 import { VAPID_KEY } from '../config';
 import {
   appConfig, appVehicles, appMembers, setAppVehicles, setAppMembers,
@@ -71,8 +71,8 @@ export function startPrefsListener() {
 export function rebuildVehicleDropdowns(){
   const opts=appVehicles.map(v=>`<option value="${v.id}">${v.emoji} ${vehicleDisplayName(v)}</option>`).join('');
   ['aVehicle'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
-  const rfv=document.getElementById('rfVehicle') as HTMLSelectElement;
-  if(rfv){const cur=rfv.value;rfv.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)rfv.value=cur;}
+  // "All Vehicles" filter dropdowns (Phase 4, F3: report filter + the live Auto table's filter)
+  ['rfVehicle','autoFilterVehicle'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)el.value=cur;}});
 }
 
 export function rebuildMemberDropdowns(){
@@ -80,6 +80,13 @@ export function rebuildMemberDropdowns(){
   const opts=appMembers.map(m=>`<option value="${m.name}">${memberDisplayName(m)}</option>`).join('');
   const rfm=document.getElementById('rfMember') as HTMLSelectElement;
   if(rfm){const cur=rfm.value;rfm.innerHTML='<option value="">All Members</option>'+opts+'<option value="All">All</option>';if(cur)rfm.value=cur;}
+  // Upcoming-events table filter (Phase 4, F3)
+  const ufm=document.getElementById('upcomingFilterMember') as HTMLSelectElement;
+  if(ufm){const cur=ufm.value;ufm.innerHTML='<option value="">All Members</option>'+opts;if(cur)ufm.value=cur;}
+  // Auto/Home "Assigned To" selects (Phase 4, F7) — unassigned (the default)
+  // reminds the whole family, same as before this existed.
+  const assigneeOpts='<option value="">👨‍👩‍👧‍👦 Unassigned (reminds everyone)</option>'+opts;
+  ['aAssignee','hAssignee'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=assigneeOpts;if(cur)el.value=cur;}});
   // Build multi-member checkbox picker for event modal
   buildEventMemberPicker([],[]);
 }
@@ -135,8 +142,8 @@ export function getEventNotifyMembers(){
 export function rebuildCategoryDropdowns(){
   const opts=homeCategories.map(c=>`<option>${c}</option>`).join('');
   ['hCategory'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
-  const rfhc=document.getElementById('rfHomeCategory') as HTMLSelectElement;
-  if(rfhc){const cur=rfhc.value;rfhc.innerHTML='<option value="">All Categories</option>'+opts;if(cur)rfhc.value=cur;}
+  // "All Categories" filter dropdowns (report filter + the live Home table's filter, Phase 4 F3)
+  ['rfHomeCategory','homeFilterCategory'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML='<option value="">All Categories</option>'+opts;if(cur)el.value=cur;}});
 }
 
 export function rebuildServiceDropdowns(){
@@ -399,6 +406,7 @@ export function openMyProfile(){
   document.getElementById('mpName')!.textContent=user?.displayName||user?.email||'Unknown';
   document.getElementById('mpEmail')!.textContent=user?.email||'';
   _renderMyProfileDevices(m);
+  _renderMyProfileCalendarFeed(m);
   // Populate notify checkboxes
   const nt=prefsFor(m).notifyTypes;
   const isAll=nt.includes('all');
@@ -424,6 +432,71 @@ export function _renderMyProfileDevices(m: any) {
         if(regBtn) (regBtn as HTMLElement).style.display=token&&tokens.some((d: any)=>(d.token||d)===token)?'none':'inline-flex';
       }).catch(()=>{});
   }
+}
+
+// Phase 4, F8 — the feed URL's token IS the credential (no login, so any
+// calendar app can poll it): the filename on disk is the token itself (see
+// generate-ics-feeds.js), so there's nothing else to check at request time.
+// That means generating or revoking it needs the same care as any other
+// secret — a fresh value on enable, and no way to recover a revoked one.
+function icsFeedUrl(token: string) {
+  return `${location.origin}/feeds/${token}.ics`;
+}
+
+function randomFeedToken(): string {
+  // crypto.randomUUID() (no dashes) is plenty of entropy for a link no one
+  // is meant to guess; every browser this PWA targets has it.
+  return crypto.randomUUID().replace(/-/g, '');
+}
+
+export function _renderMyProfileCalendarFeed(m: any) {
+  const el=document.getElementById('mpCalendarFeed');
+  if(!el) return;
+  const token=prefsFor(m).icsFeedToken;
+  if(token){
+    const url=icsFeedUrl(token);
+    el.innerHTML=`
+      <div style="font-size:.82rem;color:var(--gray-600);margin-bottom:8px">Subscribe to this link in Google/Apple/Outlook calendar — your appointments and anything assigned to you, kept in sync automatically.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" readonly value="${esc(url)}" style="flex:1;min-width:200px;font-size:.78rem;font-family:monospace" onclick="(this as HTMLInputElement).select()" />
+        <button class="btn btn-sm btn-ghost" onclick="copyMyCalendarFeedUrl('${escJs(url)}')">📋 Copy</button>
+        <button class="btn btn-sm btn-ghost btn-del" onclick="revokeMyCalendarFeed()">🗑 Revoke</button>
+      </div>`;
+  } else {
+    el.innerHTML=`
+      <div style="font-size:.82rem;color:var(--gray-600);margin-bottom:8px">Get a private link you can subscribe to from Google/Apple/Outlook calendar, instead of relying on push reminders alone.</div>
+      <button class="btn btn-sm btn-primary" onclick="enableMyCalendarFeed()">📅 Enable Calendar Feed</button>`;
+  }
+}
+
+export async function enableMyCalendarFeed(){
+  const m=_myProfileMember();
+  if(!m){toast('⚠️ Your profile is not set up in Admin yet — ask your admin to add your account.');return;}
+  try{
+    const token=randomFeedToken();
+    await writeMemberPrefs(m.email, ()=>({icsFeedToken:token}));
+    _renderMyProfileCalendarFeed(m);
+    toast('✅ Calendar feed enabled — it may take up to 30 minutes to go live');
+  }catch(e: any){toast('⚠️ Failed: '+e.message);}
+}
+
+export async function revokeMyCalendarFeed(){
+  const m=_myProfileMember();
+  if(!m) return;
+  const ok=await confirmDialog('Revoke your calendar feed? Anyone with the old link loses access the next time it refreshes, and it can\'t be restored — you\'d need to enable a new one.', {okLabel:'Revoke', danger:true});
+  if(!ok) return;
+  try{
+    await writeMemberPrefs(m.email, ()=>({icsFeedToken:''}));
+    _renderMyProfileCalendarFeed(m);
+    toast('🗑 Calendar feed revoked');
+  }catch(e: any){toast('⚠️ Failed: '+e.message);}
+}
+
+export function copyMyCalendarFeedUrl(url: string){
+  navigator.clipboard.writeText(url).then(
+    ()=>toast('📋 Feed link copied'),
+    ()=>toast('⚠️ Could not copy — select and copy manually'),
+  );
 }
 
 export function toggleMpNotifyAll(cb: HTMLInputElement) {

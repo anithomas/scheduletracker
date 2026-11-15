@@ -12,6 +12,7 @@ import {
 import { renderAdminCategories, renderAdminServiceTypes, renderAdminEventTypes, rebuildEventTypeDropdown } from './admin-catalog';
 import { renderUserAccess } from './rbac';
 import { renderAdminNotifications, rebuildReminderRecipientsDropdown } from './notifications';
+import { rebuildRenewalDropdowns } from './renewals';
 
 export function getVehicleForRecord(r: any) {
   if (r.vehicleId) {
@@ -86,6 +87,7 @@ export function applySettings(){
   rebuildMemberDropdowns();
   rebuildCategoryDropdowns();
   rebuildServiceDropdowns();
+  rebuildRenewalDropdowns();
   renderAdminVehicles();
   renderAdminMembers();
   renderAdminCategories();

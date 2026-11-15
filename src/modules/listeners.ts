@@ -1,9 +1,10 @@
 // ─── REAL-TIME LISTENERS ──────────────────────────────────────
 import { db } from './firebase-init';
-import { unsubs, setUnsubs, setAutoRecords, setHomeItems, setEvents } from './save-guards';
+import { unsubs, setUnsubs, setAutoRecords, setHomeItems, setEvents, setRenewals } from './save-guards';
 import { renderAuto } from './auto';
 import { renderHome } from './home';
 import { renderCalendar } from './calendar';
+import { renderRenewals } from './renewals';
 import { renderSummary } from './reports';
 import { checkAndShowReminders, initFCM } from './notifications';
 import { applyIncomingSettings } from './vehicles';
@@ -16,7 +17,7 @@ export function startListeners() {
   unsubs.forEach(u => { try { u(); } catch(e){} });
   setUnsubs([]);
   setSyncStatus('connecting');
-  // Run the reminder check ONCE, after all three collections have delivered their
+  // Run the reminder check ONCE, after all four collections have delivered their
   // first snapshot. The old counter kept incrementing, so every later edit by
   // anyone re-popped the banner and re-fired browser notifications. Day rollover
   // is handled separately (refreshToday -> rerenderAll).
@@ -24,7 +25,7 @@ export function startListeners() {
   const maybeCheckReminders = (name: string) => {
     if (firstLoad.has(name)) return;
     firstLoad.add(name);
-    if (firstLoad.size === 3) checkAndShowReminders();
+    if (firstLoad.size === 4) checkAndShowReminders();
   };
   // A failed listener used to leave the badge on "Live" with silently stale data.
   const onListenError = (name: string) => (err: any) => {
@@ -43,6 +44,10 @@ export function startListeners() {
     setEvents(s.docs.map(d=>({id:d.id,...d.data()})));
     renderCalendar(); renderSummary(); maybeCheckReminders('events');
   }, onListenError('events')));
+  unsubs.push(db.collection('renewals').orderBy('nextDate','asc').onSnapshot(s=>{
+    setRenewals(s.docs.map(d=>({id:d.id,...d.data()})));
+    renderRenewals(); maybeCheckReminders('renewals');
+  }, onListenError('renewals')));
   unsubs.push(db.collection('settings').doc('config').onSnapshot(snap=>{
     if(snap.exists) applyIncomingSettings(snap.data());
   }, onListenError('settings')));

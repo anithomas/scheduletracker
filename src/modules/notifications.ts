@@ -8,7 +8,8 @@ import { getVehicleForRecord } from './vehicles';
 import { vehicleDisplayName } from './display-names';
 import { CAT_ICONS } from './admin-catalog';
 import { esc } from './html-escape';
-import { toDs, parseDs, autoRecords, homeItems, events } from './save-guards';
+import { toDs, parseDs, autoRecords, homeItems, events, renewals } from './save-guards';
+import { RENEWAL_CAT_ICONS } from './renewals';
 import { saveSettings } from './vehicles';
 
 const LEAD_TIME_OPTIONS = [
@@ -123,6 +124,10 @@ export function renderAdminNotifications() {
   const leadTimes = rs.leadTimes || [1, 7];
   const toggle = document.getElementById('cfgReminderEnabled') as HTMLInputElement;
   if (toggle) toggle.checked = enabled;
+  // F6: defaults on for anyone who hasn't touched this setting yet — the
+  // same "undefined means on" convention `enabled` above already uses.
+  const digestToggle = document.getElementById('cfgWeeklyDigestEnabled') as HTMLInputElement;
+  if (digestToggle) digestToggle.checked = rs.weeklyDigest?.enabled !== false;
   const ltGrid = document.getElementById('cfgLeadTimes');
   if (ltGrid) {
     ltGrid.innerHTML = LEAD_TIME_OPTIONS.map(opt => `
@@ -136,10 +141,13 @@ export function renderAdminNotifications() {
 export async function saveReminderSettings() {
   const enabled = (document.getElementById('cfgReminderEnabled') as HTMLInputElement)?.checked !== false;
   const leadTimes = Array.from(document.querySelectorAll<HTMLInputElement>('#cfgLeadTimes input:checked')).map(el => parseInt(el.value));
+  const weeklyDigestToggle = document.getElementById('cfgWeeklyDigestEnabled') as HTMLInputElement | null;
+  const weeklyDigestEnabled = weeklyDigestToggle ? weeklyDigestToggle.checked !== false : true;
   appConfig.reminderSettings = {
     ...(appConfig.reminderSettings || {}),
     enabled,
     leadTimes: leadTimes.length ? leadTimes : [1, 7],
+    weeklyDigest: { enabled: weeklyDigestEnabled },
   } as typeof appConfig.reminderSettings;
   await saveSettings();
   const notifSaved = document.getElementById('notifSaved');
@@ -208,6 +216,20 @@ export function checkAndShowReminders() {
     if (d === null || d > maxLeadDays) return;
     if (d < 0 || leadTimes.some(lt => d <= lt)) {
       reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label: dueLabel(d), date: h.nextDate, urgent: true });
+    }
+  });
+
+  // Renewals (Phase 4, F2) always use a fixed 30/7-day window — the proposal
+  // calls for that cadence specifically, independent of whatever lead times
+  // the household has configured for auto/home reminders.
+  const RENEWAL_LEAD_TIMES = [30, 7];
+  const renewalMaxLead = Math.max(...RENEWAL_LEAD_TIMES);
+  renewals.forEach(r => {
+    if (r.completed) return;
+    const d = daysUntilDate(r.nextDate);
+    if (d === null || d > renewalMaxLead) return;
+    if (d < 0 || RENEWAL_LEAD_TIMES.some(lt => d <= lt)) {
+      reminders.push({ icon: RENEWAL_CAT_ICONS[r.category] || '🔖', title: r.title, label: dueLabel(d), date: r.nextDate, urgent: true });
     }
   });
 

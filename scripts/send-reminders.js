@@ -22,7 +22,7 @@ const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const {
   daysUntil, torontoDatePlusDays, shouldRemind, shouldRemindOverdue, dayLabel,
-  isDeadTokenError, removeTokens,
+  isDeadTokenError, removeTokens, resolveAssigneeTargets,
 } = require('./reminder-logic');
 // Shared with index.html (Phase 2, B3): same recurrence rules server- and
 // client-side, so a recurring event reminds on exactly the days the
@@ -166,16 +166,18 @@ async function main() {
   const rawMembers = config.members || [];
 
   // 2. Fetch collections (+ memberPrefs) in parallel
-  const [autoSnap, homeSnap, eventsSnap, prefsSnap] = await Promise.all([
+  const [autoSnap, homeSnap, eventsSnap, renewalsSnap, prefsSnap] = await Promise.all([
     db.collection('autoRecords').get(),
     db.collection('homeItems').get(),
     db.collection('events').get(),
+    db.collection('renewals').get(),
     db.collection('memberPrefs').get(),
   ]);
 
   const autoRecords = autoSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const homeItems   = homeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const events      = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const renewalItems = renewalsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
   // Phase 2 (S1): device tokens + notification-type choices moved off
   // settings/config.members and into their own memberPrefs/{email} doc, one
@@ -291,12 +293,14 @@ async function main() {
     const d = daysUntil(r.nextDate);
     if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
     const vehicle = r.vehicleName || r.vehicle || '';
+    // Phase 4, F7: an assigned owner is reminded alone; unassigned (or an
+    // owner with no devices/SMS gateway registered yet) still reminds everyone.
+    const { tokens, smsAddresses } = resolveAssigneeTargets(r.assignedTo, memberTokens, allTokens, SMS_GATEWAYS, ALL_SMS_ADDRESSES);
     reminders.push({
       icon: d < 0 ? '⚠️' : '🚗',
       title: `${r.service}${vehicle ? ' — ' + vehicle : ''}`,
-      body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
-      tokens: allTokens,
-      smsAddresses: ALL_SMS_ADDRESSES,
+      body: `${d < 0 ? dayLabel(d) : 'Due: ' + dayLabel(d)}${r.assignedTo ? ' · ' + r.assignedTo : ''}`,
+      tokens, smsAddresses,
     });
   });
 
@@ -304,9 +308,26 @@ async function main() {
     if (h.completed) return;
     const d = daysUntil(h.nextDate);
     if (!shouldRemind(d, leadTimes) && !shouldRemindOverdue(d)) return;
+    const { tokens, smsAddresses } = resolveAssigneeTargets(h.assignedTo, memberTokens, allTokens, SMS_GATEWAYS, ALL_SMS_ADDRESSES);
     reminders.push({
       icon: d < 0 ? '⚠️' : '🏡',
       title: h.item || h.description || 'Home maintenance',
+      body: `${d < 0 ? dayLabel(d) : 'Due: ' + dayLabel(d)}${h.assignedTo ? ' · ' + h.assignedTo : ''}`,
+      tokens, smsAddresses,
+    });
+  });
+
+  // Renewals (Phase 4, F2) — the proposal calls for a fixed 30/7-day reminder
+  // cadence specifically, independent of whatever lead times the household
+  // has configured in reminderSettings for auto/home items.
+  const RENEWAL_LEAD_TIMES = [30, 7];
+  renewalItems.forEach(r => {
+    if (r.completed) return;
+    const d = daysUntil(r.nextDate);
+    if (!shouldRemind(d, RENEWAL_LEAD_TIMES) && !shouldRemindOverdue(d)) return;
+    reminders.push({
+      icon: d < 0 ? '⚠️' : '🔖',
+      title: r.title || 'Renewal',
       body: d < 0 ? dayLabel(d) : `Due: ${dayLabel(d)}`,
       tokens: allTokens,
       smsAddresses: ALL_SMS_ADDRESSES,

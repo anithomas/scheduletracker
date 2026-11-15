@@ -44,6 +44,27 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Install reminder-script dependencies
+        run: npm ci
+        working-directory: scripts
+
+      - name: Generate calendar feeds (Phase 4, F8)
+        # Every deploy replaces the whole Pages site content, so without
+        # this step a merge to main would wipe out feeds/ until the next
+        # scheduled ics-feeds.yml run (up to 30 min later). Running it here
+        # too means a merge never has a feed-outage window at all.
+        # continue-on-error: this step must never block the app itself from
+        # deploying — a missing FIREBASE_SERVICE_ACCOUNT secret (e.g. on a
+        # fork) or a transient Firestore error should cost the feeds, not
+        # the whole site. ics-feeds.yml's own scheduled run will catch the
+        # feeds back up within its normal cadence.
+        continue-on-error: true
+        run: node generate-ics-feeds.js ../dist/feeds
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: home-and-auto-tracker
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
