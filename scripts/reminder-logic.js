@@ -94,7 +94,51 @@ function removeTokens(members, dead) {
   return { members: next, removed };
 }
 
+// Phase 4, F6 — one Sunday digest instead of a pile of per-item pings.
+// Pure: the caller (weekly-digest.js) does all the date/recurrence work and
+// hands this three already-filtered buckets of plain {icon, title, date}
+// items; this just turns them into the summary line and a short itemized
+// body, so the wording/ordering logic is unit-testable without Firestore,
+// FCM, or recurrence.js in the picture at all.
+function buildWeeklyDigest(appointments, dueSoon, overdue) {
+  appointments = appointments || []; dueSoon = dueSoon || []; overdue = overdue || [];
+  const plural = n => n === 1 ? '' : 's';
+  const parts = [
+    `${appointments.length} appointment${plural(appointments.length)}`,
+    `${dueSoon.length} item${plural(dueSoon.length)} due`,
+  ];
+  if (overdue.length) parts.push(`${overdue.length} overdue`);
+  const summary = `📅 This week: ${parts.join(', ')}`;
+  // Overdue first (most urgent), then this week's appointments and due
+  // items in whatever order the caller already sorted them by date.
+  const detailLines = [...overdue, ...appointments, ...dueSoon]
+    .slice(0, 12)
+    .map(i => `${i.icon || '•'} ${i.title}${i.date ? ' — ' + i.date : ''}`);
+  const hasAny = appointments.length + dueSoon.length + overdue.length > 0;
+  return { summary, detailLines, hasAny };
+}
+
+// Phase 4, F7 — auto/home items can be assigned to one member ("remind only
+// them" instead of the whole family). Resolves which FCM tokens and SMS
+// addresses to notify for a given `assignedTo` name, falling back to
+// everyone — independently per channel, same as the long-standing event
+// targeting in send-reminders.js — whenever there's nothing assignee-specific
+// to send to: no assignee at all, an assignee with no registered devices yet
+// (push falls back), or an assignee with no SMS gateway entry (SMS falls
+// back). That keeps a newly-assigned item reminding the whole family exactly
+// as it always did until that person actually registers a device or SMS
+// number, instead of going silent.
+function resolveAssigneeTargets(assignedTo, memberTokens, allTokens, smsGateways, allSmsAddresses) {
+  if (!assignedTo) return { tokens: allTokens, smsAddresses: allSmsAddresses };
+  const own = (memberTokens || {})[assignedTo];
+  const tokens = own && own.length ? own : allTokens;
+  const gateway = (smsGateways || {})[assignedTo];
+  const smsAddresses = gateway ? [gateway] : allSmsAddresses;
+  return { tokens, smsAddresses };
+}
+
 module.exports = {
   TZ, torontoDateString, dayNumber, daysUntil, addDays, torontoDatePlusDays,
   shouldRemind, shouldRemindOverdue, dayLabel, isDeadTokenError, removeTokens,
+  buildWeeklyDigest, resolveAssigneeTargets,
 };

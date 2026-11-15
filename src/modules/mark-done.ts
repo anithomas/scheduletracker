@@ -117,6 +117,7 @@ export async function saveHome(){
     const rec={
       item:_hItem,
       category:(document.getElementById('hCategory') as HTMLSelectElement).value,
+      assignedTo:(document.getElementById('hAssignee') as HTMLSelectElement)?.value||null, // Phase 4, F7
       freq:(document.getElementById('hFreq') as HTMLInputElement).value,
       durVal:(document.getElementById('hDurVal') as HTMLInputElement).value,
       durUnit:(document.getElementById('hDurUnit') as HTMLSelectElement).value,
@@ -150,6 +151,7 @@ export function editHome(id: string){
   (document.getElementById('homeEditId') as HTMLInputElement).dataset.existingUrls=JSON.stringify(hAllUrls);
   (document.getElementById('hItem') as HTMLInputElement).value=h.item||'';
   (document.getElementById('hCategory') as HTMLSelectElement).value=h.category||'HVAC';
+  const hAssigneeEl=document.getElementById('hAssignee') as HTMLSelectElement; if(hAssigneeEl) hAssigneeEl.value=h.assignedTo||'';
   (document.getElementById('hFreq') as HTMLInputElement).value=h.freq||'90';
   if(h.durVal&&h.durUnit){
     (document.getElementById('hDurVal') as HTMLInputElement).value=h.durVal;

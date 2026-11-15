@@ -97,13 +97,39 @@ export function renderCalendar(){
       return;
     }
     if (e.recurrence && e.recurrence.type) {
-      const nextDs = getNextOccurrence(e, _upYestDs, 90);
+      // Yearly events (birthdays, anniversaries) can be up to ~365 days out;
+      // a 90-day window would make them vanish from "Upcoming" most of the year.
+      const lookahead = e.recurrence.type === 'yearly' ? 400 : 90;
+      const nextDs = getNextOccurrence(e, _upYestDs, lookahead);
       if (nextDs) _upItems.push({...e, _displayDate: nextDs});
     } else {
       if (e.date && e.date >= _upYestDs) _upItems.push({...e, _displayDate: e.date});
     }
   });
-  const upcoming = _upItems.sort((a,b)=>(a._displayDate||'').localeCompare(b._displayDate||'')).slice(0,30);
+  // Search + member/type/date-range filters (Phase 4, F3) — applied before
+  // the 30-row cap, so filtered results aren't crowded out by rows that would
+  // have been excluded anyway.
+  const _upSearch=((document.getElementById('upcomingSearch') as HTMLInputElement)?.value||'').trim().toLowerCase();
+  const _upMemberFilter=(document.getElementById('upcomingFilterMember') as HTMLSelectElement)?.value||'';
+  const _upTypeFilter=(document.getElementById('upcomingFilterType') as HTMLSelectElement)?.value||'';
+  const _upFrom=(document.getElementById('upcomingFilterFrom') as HTMLInputElement)?.value||'';
+  const _upTo=(document.getElementById('upcomingFilterTo') as HTMLInputElement)?.value||'';
+  const _upFiltered=_upItems.filter(e=>{
+    if(_upTypeFilter && e.type!==_upTypeFilter) return false;
+    if(_upMemberFilter){
+      const names=e.members&&e.members.length?e.members:[e.member];
+      if(!names.includes(_upMemberFilter)) return false;
+    }
+    const d=e._displayDate||e.date||'';
+    if(_upFrom && d<_upFrom) return false;
+    if(_upTo && d>_upTo) return false;
+    if(_upSearch){
+      const hay=[e.title,e.location,e.notes].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(_upSearch)) return false;
+    }
+    return true;
+  });
+  const upcoming = _upFiltered.sort((a,b)=>(a._displayDate||'').localeCompare(b._displayDate||'')).slice(0,30);
   document.getElementById('eventBody')!.innerHTML=upcoming.map(e=>`
     <tr>
       <td>
@@ -126,7 +152,9 @@ export function renderCalendar(){
         <button class="btn-icon btn-edit" onclick="editEvent('${escJs(e.id)}','')">✏️</button>
         <button class="btn-icon btn-del"  onclick="confirmDeleteEvent('${escJs(e.id)}','')">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`;
+    </tr>`).join('')||(_upItems.length
+    ? `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔍</div><p>No events match your search/filter</p></div></td></tr>`
+    : `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📅</div><p>No upcoming events</p></div></td></tr>`);
 }
 
 export function changeMonth(dir: number){
