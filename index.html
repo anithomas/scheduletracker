@@ -952,6 +952,7 @@
     <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span> Calendar</button>
     <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span> <span class="nl-long">Auto Maintenance</span><span class="nl-short">Auto</span></button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span> <span class="nl-long">Home Schedules</span><span class="nl-short">Home</span></button>
+    <button onclick="showSection('renewals',this)"><span class="nav-icon">🔖</span> Renewals</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span> Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span> Admin</button>
     <button onclick="showSection('about',this)"><span class="nav-icon">✨</span> About</button>
@@ -971,6 +972,10 @@
         <div class="card-header">
           <div class="card-title">📋 All Service Records</div>
           <button class="btn btn-primary rbac-add" onclick="openModal('autoModal')">+ Add Record</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 14px">
+          <input type="text" id="autoSearch" placeholder="🔍 Search service, vehicle, notes…" style="flex:2;min-width:180px" oninput="renderAuto()" />
+          <select id="autoFilterVehicle" onchange="renderAuto()" style="min-width:140px"><option value="">All Vehicles</option></select>
         </div>
         <div class="table-wrap">
           <table>
@@ -995,6 +1000,10 @@
           <div class="card-title">🔧 Maintenance Items</div>
           <button class="btn btn-primary rbac-add" onclick="openModal('homeModal')">+ Add Item</button>
         </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 14px">
+          <input type="text" id="homeSearch" placeholder="🔍 Search item, notes…" style="flex:2;min-width:180px" oninput="renderHome()" />
+          <select id="homeFilterCategory" onchange="renderHome()" style="min-width:140px"></select>
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr>
@@ -1002,6 +1011,28 @@
               <th>Last Done</th><th>Next Due</th><th>Cost (w/ Tax)</th><th>Status</th><th class="col-progress">Progress</th><th></th>
             </tr></thead>
             <tbody id="homeBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RENEWALS (Phase 4, F2) -->
+    <div id="renewals" class="section">
+      <div class="section-header">
+        <h2>🔖 Renewals</h2>
+        <p>Insurance, licences, plate stickers and warranties — never miss an expiry</p>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔖 Tracked Renewals</div>
+          <button class="btn btn-primary rbac-add" onclick="openModal('renewalModal')">+ Add Renewal</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Title</th><th>Category</th><th>For</th><th>Expiry</th><th>Renews</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="renewalBody"></tbody>
           </table>
         </div>
       </div>
@@ -1035,6 +1066,13 @@
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:16px">📋 Upcoming Events</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+          <input type="text" id="upcomingSearch" placeholder="🔍 Search title, location, notes…" style="flex:2;min-width:180px" oninput="renderCalendar()" />
+          <select id="upcomingFilterMember" onchange="renderCalendar()" style="min-width:130px"><option value="">All Members</option></select>
+          <select id="upcomingFilterType" onchange="renderCalendar()" style="min-width:130px"><option value="">All Types</option></select>
+          <input type="date" id="upcomingFilterFrom" onchange="renderCalendar()" style="min-width:120px" title="From date" />
+          <input type="date" id="upcomingFilterTo" onchange="renderCalendar()" style="min-width:120px" title="To date" />
+        </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Date &amp; Time</th><th>Event</th><th>Member</th><th>Type</th><th>Notes</th><th>Repeat</th><th>Status</th><th></th></tr></thead>
@@ -1067,7 +1105,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">🚗 Auto Service Spend</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportAutoReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
@@ -1099,7 +1140,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">🏡 Home Maintenance Spend</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportHomeReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
@@ -1131,7 +1175,10 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">📅 Calendar Report</div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <div style="display:flex;gap:8px">
+              <button class="print-btn" onclick="exportCalReportCsv()">⬇️ Export CSV</button>
+              <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            </div>
           </div>
           <div class="report-filters">
             <div class="form-group">
@@ -1316,6 +1363,10 @@
             <div><div class="setting-label">Enable Reminders</div><div class="setting-desc">Show in-app alerts and push notifications for upcoming events, auto &amp; home due dates</div></div>
             <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="cfgReminderEnabled" onchange="saveReminderSettings()" /><span class="toggle-slider"></span></label></div>
           </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Weekly Digest</div><div class="setting-desc">One Sunday-morning summary ("3 appointments, 1 item due") instead of per-item pings — on top of, not instead of, the reminders above</div></div>
+            <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="cfgWeeklyDigestEnabled" onchange="saveReminderSettings()" /><span class="toggle-slider"></span></label></div>
+          </div>
           <div class="setting-row" style="align-items:flex-start;flex-direction:column;gap:8px;padding-bottom:14px">
             <div class="setting-label">Reminder Lead Times</div>
             <div class="setting-desc">When to send reminders before an event is due (select all that apply)</div>
@@ -1462,6 +1513,7 @@
     <button class="active" onclick="showSection('calendar',this)"><span class="nav-icon">📅</span>Calendar</button>
     <button onclick="showSection('auto',this)"><span class="nav-icon">🚗</span>Auto</button>
     <button onclick="showSection('home',this)"><span class="nav-icon">🏡</span>Home</button>
+    <button onclick="showSection('renewals',this)"><span class="nav-icon">🔖</span>Renewals</button>
     <button onclick="showSection('reports',this)"><span class="nav-icon">📊</span>Reports</button>
     <button class="rbac-admin" onclick="showSection('admin',this)"><span class="nav-icon">⚙️</span>Admin</button>
     <button onclick="showSection('about',this)"><span class="nav-icon">✨</span>About</button>
@@ -1575,6 +1627,11 @@
       <div id="mpDeviceList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-sm btn-primary" id="mpRegisterBtn" onclick="registerMyDevice()">📱 Register This Device</button>
     </div>
+    <!-- Calendar feed (Phase 4, F8) -->
+    <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:10px">
+      <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:8px">📅 My Calendar Feed</div>
+      <div id="mpCalendarFeed"></div>
+    </div>
     <!-- Notification subscriptions -->
     <div style="padding:14px;background:var(--gray-50);border-radius:var(--radius-sm);border:1.5px solid var(--gray-100);margin-bottom:14px">
       <div style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:4px">🔔 Notify me for these event types</div>
@@ -1610,6 +1667,7 @@
     <div class="form-row">
       <div class="form-group"><label>Vehicle</label><select id="aVehicle"></select></div>
       <div class="form-group"><label>Service Type</label><select id="aService"></select></div>
+      <div class="form-group"><label>👤 Assigned To <span style="font-weight:400;color:var(--gray-400)">(optional — reminds just them)</span></label><select id="aAssignee"></select></div>
       <div class="form-group"><label>Last Done Date</label><input type="date" id="aLastDate" /></div>
       <div class="form-group"><label>Next Due Date</label><input type="date" id="aNextDate" /></div>
       <div class="form-group"><label>Current Odometer (km)</label><input type="number" id="aMileage" placeholder="e.g. 45000" oninput="updateKm()" /></div>
@@ -1667,6 +1725,7 @@
     <div class="form-row">
       <div class="form-group"><label>Item Name</label><input type="text" id="hItem" placeholder="e.g. HVAC Filter" /></div>
       <div class="form-group"><label>Category</label><select id="hCategory"></select></div>
+      <div class="form-group"><label>👤 Assigned To <span style="font-weight:400;color:var(--gray-400)">(optional — reminds just them)</span></label><select id="hAssignee"></select></div>
       <div class="form-group">
         <label>Service Interval</label>
         <div class="dur-row">
@@ -1703,6 +1762,53 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('homeModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveHome()">💾 Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENEWAL MODAL (Phase 4, F2) -->
+<div class="modal-overlay" id="renewalModal">
+  <div class="modal">
+    <div class="modal-title"><div class="title-icon home">🔖</div> Renewal</div>
+    <input type="hidden" id="renewalEditId" />
+    <div class="form-row">
+      <div class="form-group"><label>Title</label><input type="text" id="rwTitle" placeholder="e.g. Civic Insurance" /></div>
+      <div class="form-group"><label>Category</label>
+        <select id="rwCategory">
+          <option value="insurance">🛡️ Insurance</option>
+          <option value="licence">🪪 Licence</option>
+          <option value="plate">🚘 Plate Sticker</option>
+          <option value="warranty">📄 Warranty</option>
+          <option value="other">🔖 Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Vehicle (optional)</label><select id="rwVehicle"></select></div>
+      <div class="form-group"><label>Assigned To (optional)</label><select id="rwAssignee"></select></div>
+      <div class="form-group"><label>Last Renewed (optional)</label><input type="date" id="rwLastDate" /></div>
+      <div class="form-group"><label>Expiry Date</label><input type="date" id="rwNextDate" /></div>
+    </div>
+    <div class="form-group">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="rwAuto" style="width:auto" onchange="toggleRenewalAuto(this)" /> Renews automatically
+      </label>
+    </div>
+    <div class="form-row" id="rwIntervalWrap" style="display:none">
+      <div class="form-group">
+        <label>Renewal Interval</label>
+        <div class="dur-row">
+          <input type="number" id="rwDurVal" placeholder="e.g. 1" min="1" value="1" />
+          <select id="rwDurUnit"><option value="months">Months</option><option value="years" selected>Years</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="rwNotes" placeholder="What it covers, who to call to renew..."></textarea>
+      <div style="font-size:.73rem;color:var(--gray-400);margin-top:4px">🔒 Don't store policy, licence or ID numbers here — just the date and what it's for.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('renewalModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRenewal()">💾 Save Renewal</button>
     </div>
   </div>
 </div>
@@ -1753,6 +1859,7 @@
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly (same date)</option>
+          <option value="yearly">Yearly (birthdays, anniversaries, renewals)</option>
         </select>
       </div>
       <div class="form-group" id="recurEndGroup" style="display:none">

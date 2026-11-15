@@ -51,15 +51,22 @@ service cloud.firestore {
     // keyed by their own lowercased sign-in email (S1). A member may only
     // read/write their own doc; an admin may read/write anyone's (e.g. to
     // prune a departed member's devices from the Admin screen).
+    // icsFeedToken (Phase 4, F8): the member's own private calendar-feed
+    // secret. The generate-ics-feeds.js job reads this collection with the
+    // Firebase Admin SDK, which bypasses these rules entirely, so the
+    // "a member can't read anyone else's doc" restriction below doesn't
+    // weaken the feed itself — it only stops one family member from reading
+    // (or overwriting) another's token through the app.
     function validPrefs() {
       let d = request.resource.data;
       // updatedBy (Phase 4, F10) is a display name, not a trust decision —
       // it's informational only (the Activity report), so a stale or even
       // spoofed value here can't grant access to anything; still size-capped
       // alongside everything else for hygiene.
-      return d.keys().hasOnly(['fcmTokens', 'notifyTypes', 'updatedBy', 'updatedAt'])
+      return d.keys().hasOnly(['fcmTokens', 'notifyTypes', 'icsFeedToken', 'updatedBy', 'updatedAt'])
         && d.get('fcmTokens', []) is list && d.get('fcmTokens', []).size() <= 20
         && d.get('notifyTypes', []) is list && d.get('notifyTypes', []).size() <= 12
+        && d.get('icsFeedToken', '') is string && d.get('icsFeedToken', '').size() <= 100
         && d.get('updatedBy', '') is string && d.get('updatedBy', '').size() <= 100;
     }
     match /memberPrefs/{email} {
@@ -77,6 +84,14 @@ service cloud.firestore {
       allow create, update, delete: if canWrite();
     }
     match /events/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if canWrite();
+    }
+    // Renewals — insurance/licence/plate/warranty expiry dates (Phase 4, F2).
+    // Deliberately date-and-notes only: no field here is sized or named for
+    // a policy/ID number, so there's nothing to lock down beyond the same
+    // read/write split every other record collection already gets.
+    match /renewals/{id} {
       allow read: if isMember();
       allow create, update, delete: if canWrite();
     }

@@ -11,6 +11,7 @@ import { vehicleDisplayName } from './display-names';
 import { durLabel, updateHst, updateKm } from './tax';
 import { fileIcon, uploadFiles, openAttachmentLink } from './file-upload';
 import { isRecurring, markDone } from './mark-done';
+import { estimateDateFromMileage } from './mileage-estimate';
 import { openModal, closeModal } from './modal';
 import { confirmDialog } from './dialogs';
 
@@ -43,12 +44,30 @@ export function renderAuto() {
       </div>`;
     }).join('');
 
-  document.getElementById('autoBody')!.innerHTML=autoRecords.map(r=>`
+  // Search + vehicle filter (Phase 4, F3) — scoped to this table only; the
+  // stats row and vehicle cards above still reflect every record.
+  const _aSearch=((document.getElementById('autoSearch') as HTMLInputElement)?.value||'').trim().toLowerCase();
+  const _aVehFilter=(document.getElementById('autoFilterVehicle') as HTMLSelectElement)?.value||'';
+  const filteredAutoRecords=autoRecords.filter(r=>{
+    if(_aVehFilter){
+      const veh=getVehicleForRecord(r);
+      if((r.vehicleId||(veh&&veh.id))!==_aVehFilter) return false;
+    }
+    if(_aSearch){
+      const hay=[autoRowVehicle(r),r.service,r.notes,r.assignedTo].filter(Boolean).join(' ').toLowerCase();
+      if(!hay.includes(_aSearch)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('autoBody')!.innerHTML=filteredAutoRecords.map(r=>{
+    const mileageEst=r.completed?null:estimateDateFromMileage(r);
+    return `
     <tr>
       <td><div class="td-main">${esc(autoRowVehicle(r))}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
-      <td><div class="td-main">${esc(r.service)}</div></td>
+      <td><div class="td-main">${esc(r.service)}</div>${r.assignedTo?`<div class="td-sub">👤 ${esc(r.assignedTo)}</div>`:''}</td>
       <td><div class="td-main">${fmt(r.lastDate)}</div></td>
-      <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div></td>
+      <td><div class="td-main">${fmt(r.nextDate)}</div><div class="td-sub">${r.nextMileage?Number(r.nextMileage).toLocaleString('en-CA')+' km':''}</div>${mileageEst?`<div class="td-sub" title="Projected from recent odometer readings — doesn't change the due date above">🛣️ ~${fmt(mileageEst)} by mileage</div>`:''}</td>
       <td class="col-odo"><div class="td-main">${r.mileage?Number(r.mileage).toLocaleString('en-CA')+' km':'—'}</div>${r.kmInterval?`<div class="td-sub">+${Number(r.kmInterval).toLocaleString('en-CA')} km/svc</div>`:''}</td>
       <td>${costWithHst(r.cost, r.taxRate)}</td>
       <td>${statusBadge(r.nextDate,r.completed)}</td>
@@ -59,7 +78,10 @@ export function renderAuto() {
         <button class="btn-icon btn-edit" onclick="editAuto('${escJs(r.id)}')" title="Edit">✏️</button>
         <button class="btn-icon btn-del"  onclick="delAuto('${escJs(r.id)}')"  title="Delete">🗑</button>
       </div></td>
-    </tr>`).join('')||`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`;
+    </tr>`;
+  }).join('')||(autoRecords.length
+    ? `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔍</div><p>No records match your search/filter</p></div></td></tr>`
+    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔧</div><p>No service records yet</p></div></td></tr>`);
 }
 
 export async function saveAuto() {
@@ -93,6 +115,7 @@ export async function saveAuto() {
       vehicleId:_aVehicle,
       vehicle:(appVehicles.find(v=>v.id===_aVehicle)||{} as any).name||_aVehicle,
       service:_aService,
+      assignedTo:(document.getElementById('aAssignee') as HTMLSelectElement)?.value||null, // Phase 4, F7
       lastDate:_aLast,
       nextDate:_aNext,
       mileage:(document.getElementById('aMileage') as HTMLInputElement).value,
@@ -128,6 +151,7 @@ export function editAuto(id: string){
   (document.getElementById('autoEditId') as HTMLInputElement).dataset.existingUrls=JSON.stringify(aAllUrls);
   (document.getElementById('aVehicle') as HTMLSelectElement).value=r.vehicleId||(getVehicleForRecord(r)&&(getVehicleForRecord(r) as any).id)||r.vehicle;
   (document.getElementById('aService') as HTMLInputElement).value=r.service;
+  const aAssigneeEl=document.getElementById('aAssignee') as HTMLSelectElement; if(aAssigneeEl) aAssigneeEl.value=r.assignedTo||'';
   (document.getElementById('aLastDate') as HTMLInputElement).value=r.lastDate||'';
   (document.getElementById('aNextDate') as HTMLInputElement).value=r.nextDate||'';
   (document.getElementById('aMileage') as HTMLInputElement).value=r.mileage||'';
