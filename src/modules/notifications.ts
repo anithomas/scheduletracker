@@ -8,7 +8,8 @@ import { getVehicleForRecord } from './vehicles';
 import { vehicleDisplayName } from './display-names';
 import { CAT_ICONS } from './admin-catalog';
 import { esc } from './html-escape';
-import { toDs, parseDs, autoRecords, homeItems, events } from './save-guards';
+import { toDs, parseDs, autoRecords, homeItems, events, renewals } from './save-guards';
+import { RENEWAL_CAT_ICONS } from './renewals';
 import { saveSettings } from './vehicles';
 
 const LEAD_TIME_OPTIONS = [
@@ -215,6 +216,20 @@ export function checkAndShowReminders() {
     if (d === null || d > maxLeadDays) return;
     if (d < 0 || leadTimes.some(lt => d <= lt)) {
       reminders.push({ icon: CAT_ICONS[h.category] || '🏡', title: h.item, label: dueLabel(d), date: h.nextDate, urgent: true });
+    }
+  });
+
+  // Renewals (Phase 4, F2) always use a fixed 30/7-day window — the proposal
+  // calls for that cadence specifically, independent of whatever lead times
+  // the household has configured for auto/home reminders.
+  const RENEWAL_LEAD_TIMES = [30, 7];
+  const renewalMaxLead = Math.max(...RENEWAL_LEAD_TIMES);
+  renewals.forEach(r => {
+    if (r.completed) return;
+    const d = daysUntilDate(r.nextDate);
+    if (d === null || d > renewalMaxLead) return;
+    if (d < 0 || RENEWAL_LEAD_TIMES.some(lt => d <= lt)) {
+      reminders.push({ icon: RENEWAL_CAT_ICONS[r.category] || '🔖', title: r.title, label: dueLabel(d), date: r.nextDate, urgent: true });
     }
   });
 

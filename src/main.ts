@@ -44,6 +44,9 @@ import { saveAuto, editAuto, delAuto, toggleAutoDone, renderAuto } from './modul
 import { toggleHomeDone, renderHome } from './modules/home';
 import { saveHome, editHome, delHome } from './modules/mark-done';
 import {
+  saveRenewal, editRenewal, delRenewal, toggleRenewalDone, toggleRenewalAuto,
+} from './modules/renewals';
+import {
   changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions, renderCalendar,
 } from './modules/calendar';
 import {
@@ -71,6 +74,8 @@ Object.assign(window, {
   saveAuto, editAuto, delAuto, toggleAutoDone, renderAuto,
   // home.ts / mark-done.ts
   toggleHomeDone, saveHome, editHome, delHome, renderHome,
+  // renewals.ts
+  saveRenewal, editRenewal, delRenewal, toggleRenewalDone, toggleRenewalAuto,
   // calendar.ts
   changeMonth, goToday, openCalDay, saveEvent, editEvent, toggleRecurOptions, renderCalendar,
   // delete-event.ts

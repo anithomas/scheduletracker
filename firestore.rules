@@ -82,6 +82,14 @@ service cloud.firestore {
       allow read: if isMember();
       allow create, update, delete: if canWrite();
     }
+    // Renewals — insurance/licence/plate/warranty expiry dates (Phase 4, F2).
+    // Deliberately date-and-notes only: no field here is sized or named for
+    // a policy/ID number, so there's nothing to lock down beyond the same
+    // read/write split every other record collection already gets.
+    match /renewals/{id} {
+      allow read: if isMember();
+      allow create, update, delete: if canWrite();
+    }
 
     // Everything else is closed.
     match /{document=**} {

@@ -20,7 +20,7 @@ export function openModal(id: string){
   // Belt-and-braces: also reset any button matching the save-button pattern,
   // in case it lost its dataset (e.g. a re-render replaced the element).
   const _sb = (typeof _saveBtn === 'function') ? _saveBtn(id) : null;
-  const _defaultLabel = ({ calModal: '💾 Save Event', autoModal: '💾 Save Record', homeModal: '💾 Save Item' } as Record<string,string>)[id];
+  const _defaultLabel = ({ calModal: '💾 Save Event', autoModal: '💾 Save Record', homeModal: '💾 Save Item', renewalModal: '💾 Save Renewal' } as Record<string,string>)[id];
   if (_sb) {
     _sb.disabled = false;
     if (_sb.dataset.prevLabel) { _sb.textContent = _sb.dataset.prevLabel; delete _sb.dataset.prevLabel; }
@@ -50,7 +50,7 @@ export function closeModal(id: string){
   document.body.classList.remove('modal-open');
   document.body.style.top = '';
   window.scrollTo(0, _modalScrollY);
-  const editMap: Record<string,string> = {autoModal:'autoEditId',homeModal:'homeEditId',calModal:'calEditId',adminVehicleModal:'vehicleCfgId',adminMemberModal:'memberCfgId'};
+  const editMap: Record<string,string> = {autoModal:'autoEditId',homeModal:'homeEditId',calModal:'calEditId',renewalModal:'renewalEditId',adminVehicleModal:'vehicleCfgId',adminMemberModal:'memberCfgId'};
   if(editMap[id]){
     const el = document.getElementById(editMap[id]) as HTMLInputElement;
     el.value='';
@@ -70,6 +70,7 @@ export function closeModal(id: string){
   if (id === 'calModal' && typeof buildEventMemberPicker === 'function') buildEventMemberPicker([], []);
   ['aHstBox','hHstBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
   ['aKmBox'].forEach(bid=>{const b=document.getElementById(bid);if(b)b.classList.remove('visible');});
+  const rwIntervalWrap=document.getElementById('rwIntervalWrap'); if(rwIntervalWrap) (rwIntervalWrap as HTMLElement).style.display='none';
   ['aFilePreview','hFilePreview','aExistingFile','hExistingFile'].forEach(pid=>{const p=document.getElementById(pid);if(p)p.innerHTML='';});
   ['aTotalEdit','hTotalEdit'].forEach(eid=>{const el=document.getElementById(eid) as HTMLInputElement;if(el)el.dataset.manualOverride='';});
   const aTax=document.getElementById('aTaxRate') as HTMLInputElement; if(aTax&&!aTax.dataset.userSet) aTax.value=String(appConfig.defaultTaxRate);

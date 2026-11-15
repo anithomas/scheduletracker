@@ -62,7 +62,7 @@ document.addEventListener('click', e => {
   }
 }, {passive:true});
 
-export let autoRecords: any[] = [], homeItems: any[] = [], events: any[] = [];
+export let autoRecords: any[] = [], homeItems: any[] = [], events: any[] = [], renewals: any[] = [];
 // Setters for the two cross-module writers (the Firestore listeners in
 // listeners.ts) — a different module can't reassign an imported `let`
 // binding directly, only the module that declares it can, so the write
@@ -70,6 +70,7 @@ export let autoRecords: any[] = [], homeItems: any[] = [], events: any[] = [];
 export function setAutoRecords(v: any[]) { autoRecords = v; }
 export function setHomeItems(v: any[]) { homeItems = v; }
 export function setEvents(v: any[]) { events = v; }
+export function setRenewals(v: any[]) { renewals = v; }
 
 // NOW/TODAY are mutable and refreshed by refreshToday() — a tab left open
 // overnight would otherwise keep calculating "days until" against a stale date,
