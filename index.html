@@ -1319,6 +1319,10 @@
             <div><div class="setting-label">Enable Reminders</div><div class="setting-desc">Show in-app alerts and push notifications for upcoming events, auto &amp; home due dates</div></div>
             <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="cfgReminderEnabled" onchange="saveReminderSettings()" /><span class="toggle-slider"></span></label></div>
           </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Weekly Digest</div><div class="setting-desc">One Sunday-morning summary ("3 appointments, 1 item due") instead of per-item pings — on top of, not instead of, the reminders above</div></div>
+            <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="cfgWeeklyDigestEnabled" onchange="saveReminderSettings()" /><span class="toggle-slider"></span></label></div>
+          </div>
           <div class="setting-row" style="align-items:flex-start;flex-direction:column;gap:8px;padding-bottom:14px">
             <div class="setting-label">Reminder Lead Times</div>
             <div class="setting-desc">When to send reminders before an event is due (select all that apply)</div>

@@ -123,6 +123,10 @@ export function renderAdminNotifications() {
   const leadTimes = rs.leadTimes || [1, 7];
   const toggle = document.getElementById('cfgReminderEnabled') as HTMLInputElement;
   if (toggle) toggle.checked = enabled;
+  // F6: defaults on for anyone who hasn't touched this setting yet — the
+  // same "undefined means on" convention `enabled` above already uses.
+  const digestToggle = document.getElementById('cfgWeeklyDigestEnabled') as HTMLInputElement;
+  if (digestToggle) digestToggle.checked = rs.weeklyDigest?.enabled !== false;
   const ltGrid = document.getElementById('cfgLeadTimes');
   if (ltGrid) {
     ltGrid.innerHTML = LEAD_TIME_OPTIONS.map(opt => `
@@ -136,10 +140,13 @@ export function renderAdminNotifications() {
 export async function saveReminderSettings() {
   const enabled = (document.getElementById('cfgReminderEnabled') as HTMLInputElement)?.checked !== false;
   const leadTimes = Array.from(document.querySelectorAll<HTMLInputElement>('#cfgLeadTimes input:checked')).map(el => parseInt(el.value));
+  const weeklyDigestToggle = document.getElementById('cfgWeeklyDigestEnabled') as HTMLInputElement | null;
+  const weeklyDigestEnabled = weeklyDigestToggle ? weeklyDigestToggle.checked !== false : true;
   appConfig.reminderSettings = {
     ...(appConfig.reminderSettings || {}),
     enabled,
     leadTimes: leadTimes.length ? leadTimes : [1, 7],
+    weeklyDigest: { enabled: weeklyDigestEnabled },
   } as typeof appConfig.reminderSettings;
   await saveSettings();
   const notifSaved = document.getElementById('notifSaved');
