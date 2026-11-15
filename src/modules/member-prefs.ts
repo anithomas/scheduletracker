@@ -71,8 +71,8 @@ export function startPrefsListener() {
 export function rebuildVehicleDropdowns(){
   const opts=appVehicles.map(v=>`<option value="${v.id}">${v.emoji} ${vehicleDisplayName(v)}</option>`).join('');
   ['aVehicle'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
-  const rfv=document.getElementById('rfVehicle') as HTMLSelectElement;
-  if(rfv){const cur=rfv.value;rfv.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)rfv.value=cur;}
+  // "All Vehicles" filter dropdowns (Phase 4, F3: report filter + the live Auto table's filter)
+  ['rfVehicle','autoFilterVehicle'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML='<option value="">All Vehicles</option>'+opts;if(cur)el.value=cur;}});
 }
 
 export function rebuildMemberDropdowns(){
@@ -80,6 +80,13 @@ export function rebuildMemberDropdowns(){
   const opts=appMembers.map(m=>`<option value="${m.name}">${memberDisplayName(m)}</option>`).join('');
   const rfm=document.getElementById('rfMember') as HTMLSelectElement;
   if(rfm){const cur=rfm.value;rfm.innerHTML='<option value="">All Members</option>'+opts+'<option value="All">All</option>';if(cur)rfm.value=cur;}
+  // Upcoming-events table filter (Phase 4, F3)
+  const ufm=document.getElementById('upcomingFilterMember') as HTMLSelectElement;
+  if(ufm){const cur=ufm.value;ufm.innerHTML='<option value="">All Members</option>'+opts;if(cur)ufm.value=cur;}
+  // Auto/Home "Assigned To" selects (Phase 4, F7) — unassigned (the default)
+  // reminds the whole family, same as before this existed.
+  const assigneeOpts='<option value="">👨‍👩‍👧‍👦 Unassigned (reminds everyone)</option>'+opts;
+  ['aAssignee','hAssignee'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=assigneeOpts;if(cur)el.value=cur;}});
   // Build multi-member checkbox picker for event modal
   buildEventMemberPicker([],[]);
 }
@@ -135,8 +142,8 @@ export function getEventNotifyMembers(){
 export function rebuildCategoryDropdowns(){
   const opts=homeCategories.map(c=>`<option>${c}</option>`).join('');
   ['hCategory'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML=opts;if(cur)el.value=cur;}});
-  const rfhc=document.getElementById('rfHomeCategory') as HTMLSelectElement;
-  if(rfhc){const cur=rfhc.value;rfhc.innerHTML='<option value="">All Categories</option>'+opts;if(cur)rfhc.value=cur;}
+  // "All Categories" filter dropdowns (report filter + the live Home table's filter, Phase 4 F3)
+  ['rfHomeCategory','homeFilterCategory'].forEach(id=>{const el=document.getElementById(id) as HTMLSelectElement;if(el){const cur=el.value;el.innerHTML='<option value="">All Categories</option>'+opts;if(cur)el.value=cur;}});
 }
 
 export function rebuildServiceDropdowns(){

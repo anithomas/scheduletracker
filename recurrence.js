@@ -117,6 +117,18 @@
       return c.d === targetDay;
     }
 
+    if (e.recurrence.type === 'yearly') {
+      const interval = e.recurrence.interval || 1;
+      const s = ymd(start), c = ymd(ds);
+      const diffYears = c.y - s.y;
+      if (diffYears < 0 || diffYears % interval !== 0) return false;
+      if (c.m !== s.m) return false;
+      // Feb 29 birthdays/anniversaries clamp to Feb 28 in non-leap years,
+      // same spirit as the monthly day-of-month clamp above.
+      const targetDay = Math.min(s.d, daysInMonth(c.y, s.m));
+      return c.d === targetDay;
+    }
+
     return false;
   }
 

@@ -7,6 +7,7 @@
   "scripts": {
     "send-reminders": "node send-reminders.js",
     "generate-ics-feeds": "node generate-ics-feeds.js",
+    "weekly-digest": "node weekly-digest.js",
     "test": "node --test reminder-logic.test.js recurrence.test.js ics-builder.test.js"
   },
   "dependencies": {

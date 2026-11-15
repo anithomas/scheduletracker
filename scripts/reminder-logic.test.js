@@ -81,6 +81,49 @@ test('torontoDatePlusDays offsets Toronto\'s "today", not UTC "today"', () => {
   assert.equal(L.torontoDatePlusDays(7, MORNING), '2026-11-06');
 });
 
+test('resolveAssigneeTargets: no assignee reminds everyone (Phase 4, F7)', () => {
+  const memberTokens = { Ani: ['tok-ani'] };
+  const smsGateways = { Ani: 'ani@txt.bell.ca' };
+  const allTokens = ['tok-ani', 'tok-anju'];
+  const allSms = ['ani@txt.bell.ca', 'anju@pcs.rogers.com'];
+  assert.deepEqual(
+    L.resolveAssigneeTargets('', memberTokens, allTokens, smsGateways, allSms),
+    { tokens: allTokens, smsAddresses: allSms }
+  );
+  assert.deepEqual(
+    L.resolveAssigneeTargets(null, memberTokens, allTokens, smsGateways, allSms),
+    { tokens: allTokens, smsAddresses: allSms }
+  );
+});
+
+test('resolveAssigneeTargets: assignee with devices and an SMS gateway gets only their own', () => {
+  const memberTokens = { Ani: ['tok-ani'], Anju: ['tok-anju'] };
+  const smsGateways = { Ani: 'ani@txt.bell.ca', Anju: 'anju@pcs.rogers.com' };
+  const allTokens = ['tok-ani', 'tok-anju'];
+  const allSms = ['ani@txt.bell.ca', 'anju@pcs.rogers.com'];
+  assert.deepEqual(
+    L.resolveAssigneeTargets('Anju', memberTokens, allTokens, smsGateways, allSms),
+    { tokens: ['tok-anju'], smsAddresses: ['anju@pcs.rogers.com'] }
+  );
+});
+
+test('resolveAssigneeTargets falls back to everyone per channel when the assignee has nothing on that channel', () => {
+  // Kevin has a push device but no SMS gateway entry.
+  const memberTokens = { Kevin: ['tok-kevin'] };
+  const smsGateways = {};
+  const allTokens = ['tok-kevin', 'tok-rachel'];
+  const allSms = ['rachel@txt.bell.ca'];
+  assert.deepEqual(
+    L.resolveAssigneeTargets('Kevin', memberTokens, allTokens, smsGateways, allSms),
+    { tokens: ['tok-kevin'], smsAddresses: allSms } // push: his own; SMS: falls back
+  );
+  // Rachel has no registered devices at all yet.
+  assert.deepEqual(
+    L.resolveAssigneeTargets('Rachel', {}, allTokens, { Rachel: 'rachel@txt.bell.ca' }, allSms),
+    { tokens: allTokens, smsAddresses: ['rachel@txt.bell.ca'] } // push falls back; SMS: hers
+  );
+});
+
 test('removeTokens handles string and object tokens and leaves others untouched', () => {
   const members = [
     { name: 'Ani', fcmTokens: ['a', { token: 'b', os: 'x' }, 'c'] },
@@ -92,4 +135,42 @@ test('removeTokens handles string and object tokens and leaves others untouched'
   assert.deepEqual(next[0].fcmTokens, ['a']);
   assert.equal(next[1], members[1]); // same object: unchanged
   assert.equal(next[2], members[2]);
+});
+
+test('buildWeeklyDigest summarizes counts, with overdue called out only when present', () => {
+  const noOverdue = L.buildWeeklyDigest(
+    [{ icon: '📅', title: 'Dentist', date: '2026-11-17' }, { icon: '📅', title: 'Soccer', date: '2026-11-18' }, { icon: '📅', title: 'Haircut', date: '2026-11-19' }],
+    [{ icon: '🚗', title: 'Oil change', date: '2026-11-16' }],
+    [],
+  );
+  assert.equal(noOverdue.summary, '📅 This week: 3 appointments, 1 item due');
+  assert.equal(noOverdue.hasAny, true);
+
+  const withOverdue = L.buildWeeklyDigest(
+    [],
+    [],
+    [{ icon: '🏡', title: 'Furnace filter', date: '2026-11-10' }],
+  );
+  assert.equal(withOverdue.summary, '📅 This week: 0 appointments, 0 items due, 1 overdue');
+});
+
+test('buildWeeklyDigest pluralizes correctly and lists overdue items first', () => {
+  const d = L.buildWeeklyDigest(
+    [{ icon: '📅', title: 'Dentist', date: '2026-11-17' }],
+    [{ icon: '🚗', title: 'Oil change', date: '2026-11-16' }, { icon: '🏡', title: 'Gutters', date: '2026-11-18' }],
+    [{ icon: '🏡', title: 'Furnace filter', date: '2026-11-10' }],
+  );
+  assert.equal(d.summary, '📅 This week: 1 appointment, 2 items due, 1 overdue');
+  assert.deepEqual(d.detailLines, [
+    '🏡 Furnace filter — 2026-11-10',
+    '📅 Dentist — 2026-11-17',
+    '🚗 Oil change — 2026-11-16',
+    '🏡 Gutters — 2026-11-18',
+  ]);
+});
+
+test('buildWeeklyDigest reports hasAny=false and no digest needed when the week is empty', () => {
+  const empty = L.buildWeeklyDigest([], [], []);
+  assert.equal(empty.hasAny, false);
+  assert.equal(empty.summary, '📅 This week: 0 appointments, 0 items due');
 });

@@ -8,6 +8,15 @@ import { appVehicles } from './settings';
 import { getVehicleForRecord } from './vehicles';
 import { durLabel } from './tax';
 import { fileIcon, openAttachmentLink } from './file-upload';
+import { toCsv, downloadCsv } from './csv-export';
+
+// Phase 4, F4 — each render*() below also stashes the exact rows it just
+// displayed (post-filter, post-sort, with the same tax math already done)
+// so the matching export*Csv() can write out precisely what's on screen,
+// without recomputing it or drifting from it.
+let _autoExportRows: (string | number)[][] = [];
+let _homeExportRows: (string | number)[][] = [];
+let _calExportRows: (string | number)[][] = [];
 
 export function showReport(id: string, btn: HTMLElement){
   document.querySelectorAll('.report-panel').forEach(p=>p.classList.remove('active'));
@@ -55,14 +64,14 @@ export function renderSummary(){
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px">
       <div class="card" style="margin:0">
-        <div class="card-title" style="margin-bottom:14px">🚗 Auto Spend by Vehicle</div>
+        <div class="card-title" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">🚗 Auto Spend by Vehicle<button class="print-btn" style="font-size:.72rem;padding:4px 10px" onclick="exportVehicleSpendCsv()">⬇️ CSV</button></div>
         <div class="table-wrap"><table>
           <thead><tr><th>Vehicle</th><th>Total (w/HST)</th></tr></thead>
           <tbody>${vehicleRows||'<tr><td colspan="2"><div class="empty-state" style="padding:16px"><p>No vehicles</p></div></td></tr>'}</tbody>
         </table></div>
       </div>
       <div class="card" style="margin:0">
-        <div class="card-title" style="margin-bottom:14px">🏡 Home Spend by Category</div>
+        <div class="card-title" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">🏡 Home Spend by Category<button class="print-btn" style="font-size:.72rem;padding:4px 10px" onclick="exportCategorySpendCsv()">⬇️ CSV</button></div>
         <div class="table-wrap"><table>
           <thead><tr><th>Category</th><th>Total (w/HST)</th></tr></thead>
           <tbody>${catRows||'<tr><td colspan="2"><div class="empty-state" style="padding:16px"><p>No costs recorded</p></div></td></tr>'}</tbody>
@@ -76,6 +85,21 @@ export function renderSummary(){
         </table></div>
       </div>
     </div>`;
+}
+
+export function exportVehicleSpendCsv(){
+  const rows=appVehicles.map(v=>{
+    const vCost=autoRecords.filter(r=>getVehicleForRecord(r)&&(getVehicleForRecord(r) as any).id===v.id).reduce((s,r)=>s+(parseFloat(r.cost)||0)*(1+HST_RATE),0);
+    return [v.name, vCost.toFixed(2)];
+  });
+  downloadCsv(`vehicle-spend-${todayDs()}.csv`, toCsv(['Vehicle','Total (w/HST)'], rows));
+}
+
+export function exportCategorySpendCsv(){
+  const homeByCat: Record<string, number>={};
+  homeItems.forEach(h=>{const c=h.category||'Other';homeByCat[c]=(homeByCat[c]||0)+(parseFloat(h.cost)||0)*(1+HST_RATE);});
+  const rows=Object.entries(homeByCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>[c, v.toFixed(2)]);
+  downloadCsv(`home-category-spend-${todayDs()}.csv`, toCsv(['Category','Total (w/HST)'], rows));
 }
 
 export function renderReportAuto(){
@@ -98,11 +122,13 @@ export function renderReportAuto(){
     <div class="report-total-card"><div class="report-total-label">Pre-Tax</div><div class="report-total-val">$${pretax.toFixed(2)}</div></div>
     <div class="report-total-card"><div class="report-total-label">Tax</div><div class="report-total-val">$${taxTotal.toFixed(2)}</div></div>
     <div class="report-total-card highlight"><div class="report-total-label">Total (w/Tax)</div><div class="report-total-val">$${totalWithTax.toFixed(2)}</div></div>`;
+  _autoExportRows=[];
   document.getElementById('autoReportBody')!.innerHTML=data.map(r=>{
     const taxPct=(r.taxRate||13);
     const c=r.totalOverride?r.totalOverride/(1+taxPct/100):parseFloat(r.cost)||0;
     const tot=r.totalOverride||c*(1+taxPct/100);
     const taxAmt=tot-c;
+    _autoExportRows.push([r.vehicle||'', r.service||'', fmt(r.lastDate), c>0?c.toFixed(2):'', c>0?taxAmt.toFixed(2):'', tot>0?tot.toFixed(2):'']);
     return `<tr>
       <td><div class="td-main">${esc(r.vehicle)}</div>${r.durVal?`<div class="td-sub">${esc(durLabel(r.durVal,r.durUnit))}</div>`:''}</td>
       <td><div class="td-main">${esc(r.service)}</div>${r.mileage?`<div class="td-sub">${Number(r.mileage).toLocaleString('en-CA')} km</div>`:''}</td>
@@ -113,6 +139,11 @@ export function renderReportAuto(){
       <td>${r.attachmentUrl?`<a class="attachment-link" href="javascript:void(0)" onclick="openAttachmentLink('${escJs(r.attachmentUrl)}')">${fileIcon(r.attachmentUrl)} View</a>`:'—'}</td>
     </tr>`;
   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚗</div><p>No records match filters</p></div></td></tr>`;
+}
+
+export function exportAutoReportCsv(){
+  downloadCsv(`auto-service-report-${todayDs()}.csv`,
+    toCsv(['Vehicle','Service','Date','Pre-Tax','Tax','Total'], _autoExportRows));
 }
 
 export function renderReportHome(){
@@ -135,11 +166,13 @@ export function renderReportHome(){
     <div class="report-total-card"><div class="report-total-label">Pre-Tax</div><div class="report-total-val">$${hPretax.toFixed(2)}</div></div>
     <div class="report-total-card"><div class="report-total-label">Tax</div><div class="report-total-val">$${hTaxTotal.toFixed(2)}</div></div>
     <div class="report-total-card highlight"><div class="report-total-label">Total (w/Tax)</div><div class="report-total-val">$${hTotalWithTax.toFixed(2)}</div></div>`;
+  _homeExportRows=[];
   document.getElementById('homeReportBody')!.innerHTML=data.map(h=>{
     const taxPct=(h.taxRate||13);
     const c=h.totalOverride?h.totalOverride/(1+taxPct/100):parseFloat(h.cost)||0;
     const tot=h.totalOverride||c*(1+taxPct/100);
     const taxAmt=tot-c;
+    _homeExportRows.push([h.item||'', h.category||'', fmt(h.lastDate), c>0?c.toFixed(2):'', c>0?taxAmt.toFixed(2):'', tot>0?tot.toFixed(2):'']);
     return `<tr>
       <td><div class="td-main">${CAT_ICONS[h.category]||'📦'} ${esc(h.item)}</div>${h.durVal?`<div class="td-sub">${esc(durLabel(h.durVal,h.durUnit))}</div>`:''}</td>
       <td><span class="type-badge type-general">${esc(h.category)}</span></td>
@@ -150,6 +183,11 @@ export function renderReportHome(){
       <td>${h.attachmentUrl?`<a class="attachment-link" href="javascript:void(0)" onclick="openAttachmentLink('${escJs(h.attachmentUrl)}')">📎 View</a>`:'—'}</td>
     </tr>`;
   }).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏡</div><p>No records match filters</p></div></td></tr>`;
+}
+
+export function exportHomeReportCsv(){
+  downloadCsv(`home-maintenance-report-${todayDs()}.csv`,
+    toCsv(['Item','Category','Date','Pre-Tax','Tax','Total'], _homeExportRows));
 }
 
 export function renderReportCal(){
@@ -194,6 +232,7 @@ export function renderReportCal(){
   document.getElementById('calReportTotals')!.innerHTML=`
     <div class="report-total-card"><div class="report-total-label">Total Events</div><div class="report-total-val">${data.length}</div></div>
     ${Object.entries(byType).map(([t,c])=>`<div class="report-total-card"><div class="report-total-label">${esc(t)}</div><div class="report-total-val">${c}</div></div>`).join('')}`;
+  _calExportRows=data.map(e=>[fmt(e.date), e.time?fmtTime(e.time):'', e.title||'', e.member?memberLabel(e.member):'', e.type||'', e.location||'', e.notes||'']);
   document.getElementById('calReportBody')!.innerHTML=data.map(e=>`
     <tr>
       <td><div class="td-main">${fmt(e.date)}</div>${e.endDate&&e.endDate!==e.date?`<div class="td-sub">→ ${fmt(e.endDate)}</div>`:''}</td>
@@ -206,4 +245,9 @@ export function renderReportCal(){
       <td><div style="font-size:.79rem">${e.location?esc(e.location):'—'}</div></td>
       <td><div style="font-size:.79rem;color:var(--gray-500);max-width:140px">${e.notes?esc(e.notes):'—'}</div></td>
     </tr>`).join('')||`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📅</div><p>No events match filters</p></div></td></tr>`;
+}
+
+export function exportCalReportCsv(){
+  downloadCsv(`calendar-events-report-${todayDs()}.csv`,
+    toCsv(['Date','Time','Title','Member','Type','Location','Notes'], _calExportRows));
 }
