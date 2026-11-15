@@ -51,6 +51,8 @@ import {
 import { syncToGCal } from './modules/gcal-sync';
 import {
   showReport, renderReportAuto, renderReportHome, renderReportCal,
+  exportAutoReportCsv, exportHomeReportCsv, exportCalReportCsv,
+  exportVehicleSpendCsv, exportCategorySpendCsv,
 } from './modules/reports';
 import { openModal, closeModal } from './modules/modal';
 import { initAboutBadge, registerServiceWorker } from './modules/app-init';
@@ -76,6 +78,8 @@ Object.assign(window, {
   syncToGCal,
   // reports.ts
   showReport, renderReportAuto, renderReportHome, renderReportCal,
+  exportAutoReportCsv, exportHomeReportCsv, exportCalReportCsv,
+  exportVehicleSpendCsv, exportCategorySpendCsv,
   // auth.ts
   signInWithGoogle, signOut,
   // rbac.ts
