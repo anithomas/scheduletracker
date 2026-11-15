@@ -81,12 +81,53 @@
       --gray-50:var(--parchment); --gray-100:var(--parchment-deep); --gray-200:var(--line); --gray-300:var(--line);
       --gray-400:var(--ink-soft); --gray-500:var(--ink-soft); --gray-600:var(--ink-soft); --gray-700:var(--ink);
       --gray-800:var(--ink); --gray-900:var(--teal-deep);
+      /* Phase 4, F11: --gray-900 does double duty as both "darkest heading
+         text" (should flip to light in dark mode) and "near-black chip
+         background" for the toast/tooltip bubbles below (should stay dark
+         in both themes — they're reverse-contrast call-outs, not page
+         content). --heading splits the first role out so dark mode can
+         override just that one without breaking the always-dark bubbles. */
+      --heading:var(--gray-900);
       --radius-sm:6px; --radius:12px; --radius-lg:16px;
       --shadow-sm:0 1px 3px rgba(11,31,58,.07),0 1px 2px rgba(11,31,58,.05);
       --shadow:0 2px 10px rgba(11,31,58,.08),0 1px 3px rgba(11,31,58,.06);
       --shadow-lg:0 8px 28px rgba(11,31,58,.12),0 2px 8px rgba(11,31,58,.08);
       --m-ani:var(--teal); --m-anju:var(--coral); --m-kevin:var(--sage); --m-rachel:var(--gold); --m-all:var(--ink);
     }
+
+    /* ---- DARK MODE (Phase 4, F11) ----
+       Only the neutral "page chrome" tokens flip — background, card, text,
+       borders, heading strength, and the four pale tint backgrounds. The
+       brand hues themselves (--teal/--coral/--sage/--gold and their -deep
+       variants) stay the same in both themes: they're semantic/member
+       colors and the header/login gradient, not page-background colors,
+       so nothing elsewhere needs to change for the rest of the app's CSS
+       (built entirely on the --gray-*/--card/--ink aliases) to look right.
+       Two blocks with the same values: one for an explicit user choice
+       (data-theme, set by theme.ts and persisted to localStorage), one
+       for "no explicit choice yet — follow the OS setting" so a new visit
+       on a dark-mode device is dark immediately, no flash, no JS needed. */
+    :root[data-theme="dark"] {
+      --parchment:#0d1526; --parchment-deep:#0a0f1d; --card:#141f35;
+      --ink:#e2e8f0; --ink-soft:#94a3b8; --line:#263249; --heading:#f1f5f9;
+      --teal-tint:#1b2740; --coral-tint:#3a2420; --sage-tint:#163024; --gold-tint:#332512;
+      --shadow-sm:0 1px 3px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.3);
+      --shadow:0 2px 10px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.35);
+      --shadow-lg:0 8px 28px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --parchment:#0d1526; --parchment-deep:#0a0f1d; --card:#141f35;
+        --ink:#e2e8f0; --ink-soft:#94a3b8; --line:#263249; --heading:#f1f5f9;
+        --teal-tint:#1b2740; --coral-tint:#3a2420; --sage-tint:#163024; --gold-tint:#332512;
+        --shadow-sm:0 1px 3px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.3);
+        --shadow:0 2px 10px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.35);
+        --shadow-lg:0 8px 28px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);
+      }
+    }
+    /* Smooth the flip itself (clicking the toggle, or the OS switching
+       while the tab is open) rather than every color snapping at once. */
+    body,.card,header,nav,.modal,.stat-card{transition:background-color .2s ease,border-color .2s ease,color .2s ease;}
 
     *{box-sizing:border-box;margin:0;padding:0;}
     html{scroll-behavior:smooth;}
@@ -163,7 +204,7 @@
     .stat-icon-wrap.amber{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
     .stat-icon-wrap.green{background:linear-gradient(135deg,#e3f3ea,#c7e8d6);}
     .stat-icon-wrap.purple{background:linear-gradient(135deg,#f9efd9,#f1deb3);}
-    .stat-value{font-size:1.6rem;font-weight:800;color:var(--gray-900);line-height:1;}
+    .stat-value{font-size:1.6rem;font-weight:800;color:var(--heading);line-height:1;}
     .stat-label{font-size:.73rem;color:var(--gray-500);margin-top:3px;font-weight:500;}
 
     /* CARDS */
@@ -254,7 +295,7 @@
     .hst-box.visible{display:flex;}
     .hst-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
     .hst-item{font-size:.82rem;color:var(--gray-600);display:flex;align-items:center;gap:5px;}
-    .hst-item strong{color:var(--gray-900);}
+    .hst-item strong{color:var(--heading);}
     .hst-total{font-size:.9rem;font-weight:700;color:var(--indigo);display:flex;align-items:center;gap:6px;}
     .hst-micro-input{width:54px;padding:4px 7px;border:1.5px solid #e4e8f0;border-radius:7px;font-size:.82rem;text-align:center;font-family:inherit;color:var(--gray-800);background:var(--card);outline:none;transition:border .15s;}
     .hst-micro-input:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(7,20,39,.12);}
@@ -291,7 +332,7 @@
     .modal-overlay.open{display:flex;animation:fadeIn .2s ease;}
     .modal{background:var(--card);border-radius:var(--radius-lg);padding:28px 26px;width:600px;max-width:100%;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:slideUp .25s ease;}
     @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-    .modal-title{font-size:1.05rem;font-weight:800;color:var(--gray-900);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+    .modal-title{font-size:1.05rem;font-weight:800;color:var(--heading);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
     .modal-title .title-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;}
     .title-icon.auto{background:linear-gradient(135deg,#e4e8f0,#d2d9e6);}
     .title-icon.home{background:linear-gradient(135deg,#e3f3ea,#c7e8d6);}
@@ -354,7 +395,7 @@
     .report-total-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
     .report-total-card{background:var(--card);border:1px solid var(--gray-100);border-radius:var(--radius);padding:14px 18px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow-sm);min-width:130px;}
     .report-total-label{font-size:.71rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;}
-    .report-total-val{font-size:1.3rem;font-weight:800;color:var(--gray-900);}
+    .report-total-val{font-size:1.3rem;font-weight:800;color:var(--heading);}
     .report-total-card.highlight{background:linear-gradient(135deg,#e4e8f0,#f9efd9);border-color:#f9efd9;}
     .report-total-card.highlight .report-total-val{color:var(--indigo);}
     .print-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:9px;border:1.5px solid var(--gray-200);background:var(--card);font-size:.82rem;font-weight:600;cursor:pointer;color:var(--gray-600);font-family:inherit;transition:all .15s;}
@@ -362,7 +403,7 @@
 
     /* SECTION HEADER */
     .section-header{margin-bottom:20px;}
-    .section-header h2{font-size:1.3rem;font-weight:800;color:var(--gray-900);}
+    .section-header h2{font-size:1.3rem;font-weight:800;color:var(--heading);}
     .section-header p{font-size:.83rem;color:var(--gray-500);margin-top:3px;}
 
     /* EMPTY */
@@ -622,7 +663,7 @@
     .about-builder::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#0b1f3a,#d9a441,#e76f51);}
     .about-builder-avatar{width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#0b1f3a,#d9a441);display:flex;align-items:center;justify-content:center;font-size:2.4rem;flex-shrink:0;box-shadow:0 8px 24px rgba(7,20,39,.3);}
     .about-builder-info{flex:1;}
-    .about-builder-info h2{font-size:1.4rem;font-weight:900;color:var(--gray-900);margin-bottom:4px;}
+    .about-builder-info h2{font-size:1.4rem;font-weight:900;color:var(--heading);margin-bottom:4px;}
     .about-builder-info .subtitle{font-size:.88rem;color:var(--blue);font-weight:600;margin-bottom:12px;}
     .about-builder-info p{font-size:.88rem;color:var(--gray-600);line-height:1.7;}
     .about-claude-badge{display:inline-flex;align-items:center;gap:8px;background:var(--teal-tint);border:1.5px solid var(--teal);color:var(--teal-deep);padding:8px 16px;border-radius:12px;font-size:.82rem;font-weight:700;margin-top:14px;}
@@ -640,11 +681,11 @@
     .about-feature-icon.mob{background:linear-gradient(135deg,#e3f3ea,#c7e8d6);}
     .about-feature-icon.apk{background:linear-gradient(135deg,#fbe9e3,#f6d4c7);}
     .about-feature-icon.adm{background:linear-gradient(135deg,#f8fafc,#e2e8f0);}
-    .about-feature-text h4{font-size:.9rem;font-weight:700;color:var(--gray-900);margin-bottom:4px;}
+    .about-feature-text h4{font-size:.9rem;font-weight:700;color:var(--heading);margin-bottom:4px;}
     .about-feature-text p{font-size:.79rem;color:var(--gray-500);line-height:1.55;}
 
     .about-stack{background:var(--card);border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--gray-100);padding:28px 28px;margin-bottom:28px;}
-    .about-stack h3{font-size:1rem;font-weight:800;color:var(--gray-900);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+    .about-stack h3{font-size:1rem;font-weight:800;color:var(--heading);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
     .about-stack-pills{display:flex;flex-wrap:wrap;gap:10px;}
     .about-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;font-size:.79rem;font-weight:600;border:1.5px solid;}
     .about-pill.blue{background:#e4e8f0;border-color:#e4e8f0;color:#0b1f3a;}
@@ -675,7 +716,7 @@
     .config-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;margin-bottom:20px;}
     .config-card{background:var(--card);border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--gray-100);overflow:hidden;}
     .config-card-header{padding:18px 22px 14px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:10px;}
-    .config-card-title{font-size:.95rem;font-weight:800;color:var(--gray-900);display:flex;align-items:center;gap:9px;}
+    .config-card-title{font-size:.95rem;font-weight:800;color:var(--heading);display:flex;align-items:center;gap:9px;}
     .config-card-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
     .ci-blue{background:linear-gradient(135deg,#e4e8f0,#d2d9e6);}
     .ci-green{background:linear-gradient(135deg,#e3f3ea,#c7e8d6);}
@@ -735,7 +776,7 @@
 
     .color-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px;}
     .color-swatch-btn{width:32px;height:32px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s;touch-action:manipulation;}
-    .color-swatch-btn.selected{border-color:var(--gray-900);transform:scale(1.2);}
+    .color-swatch-btn.selected{border-color:var(--heading);transform:scale(1.2);}
 
     @media(max-width:640px){
       .config-grid{grid-template-columns:1fr;}
@@ -942,6 +983,7 @@
         <img class="avatar" id="userAvatar" alt="" referrerpolicy="no-referrer" style="display:none" onerror="this.style.display='none'" />
         <span class="user-name" id="userName"></span>
         <span class="role-badge" id="roleBadge" style="display:none"></span>
+        <button class="profile-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Switch to dark mode" aria-label="Switch to dark mode"><span id="themeToggleIcon">🌙</span><span class="hdr-label" id="themeToggleLabel"> Dark</span></button>
         <button class="profile-btn" onclick="openMyProfile()" title="My notifications & device" aria-label="My profile">🔔<span class="hdr-label"> My Profile</span></button>
         <button class="sign-out-btn" onclick="signOut()" aria-label="Sign out"><svg class="hdr-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="hdr-label">Sign out</span></button>
       </div>
@@ -1419,7 +1461,7 @@
 
       <!-- Features Grid -->
       <div style="margin-bottom:16px;">
-        <h3 style="font-size:1.05rem;font-weight:800;color:var(--gray-900);margin-bottom:18px;">What this app does</h3>
+        <h3 style="font-size:1.05rem;font-weight:800;color:var(--heading);margin-bottom:18px;">What this app does</h3>
         <div class="about-features-grid">
           <div class="about-feature-card">
             <div class="about-feature-icon cal">📅</div>

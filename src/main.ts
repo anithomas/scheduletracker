@@ -60,6 +60,7 @@ import {
 } from './modules/reports';
 import { openModal, closeModal } from './modules/modal';
 import { initAboutBadge, registerServiceWorker } from './modules/app-init';
+import { initTheme, toggleTheme } from './modules/theme';
 
 Object.assign(window, {
   // modal.ts
@@ -104,6 +105,8 @@ Object.assign(window, {
   saveReminderSettings,
   // admin-catalog.ts
   addHomeCategory, addServiceType, addEventType, removeCat, removeService, delEventType,
+  // theme.ts
+  toggleTheme,
 });
 
 // Page-setup that used to run as separate inline <script> tags in
@@ -111,3 +114,4 @@ Object.assign(window, {
 // can't allow unnamed inline scripts to run).
 initAboutBadge();
 registerServiceWorker();
+initTheme();
