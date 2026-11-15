@@ -49,7 +49,22 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Firestore + Storage rules
-        run: npx firebase-tools@13 deploy --only firestore:rules,storage:rules --project home-and-auto-tracker --non-interactive
+      # Split into two deploy calls rather than one combined
+      # `--only firestore:rules,storage:rules`: firebase-tools checks that
+      # EVERY targeted service's API is enabled/reachable before deploying
+      # ANY of them, so a Storage-side permission gap on the service
+      # account (it may only ever have been granted Firestore access for
+      # the Admin SDK jobs) blocked the Firestore rules deploy too, even
+      # though Firestore itself deployed fine on its own. Firestore is the
+      # one actually gating the live "Missing or insufficient permissions"
+      # error, so it must not fail because of an unrelated Storage-side gap.
+      - name: Deploy Firestore rules
+        run: npx firebase-tools@13 deploy --only firestore:rules --project home-and-auto-tracker --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+
+      - name: Deploy Storage rules
+        run: npx firebase-tools@13 deploy --only storage:rules --project home-and-auto-tracker --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+        continue-on-error: true # see note above on the service account's Storage permission gap
