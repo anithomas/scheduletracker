@@ -37,13 +37,28 @@
        the app's rendering (auto.ts, home.ts, calendar.ts, etc.) builds
        elements with inline style="" attributes rather than CSS classes for
        per-row dynamic values (member colors, progress-bar widths) — there's
-       no practical nonce story for innerHTML-generated markup. script-src
-       has no such exception: every script is either this origin's own
-       bundle or the named Google origin, so injected <script> content
-       (classic XSS payloads) still can't execute. -->
+       no practical nonce story for innerHTML-generated markup.
+
+       script-src ALSO needs 'unsafe-inline', for the same reason, one level
+       up: every clickable element in this app — the sign-in button included
+       — is an onclick="…"/onchange="…" HTML attribute, and CSP's script-src
+       governs those exactly like a <script> tag. Without 'unsafe-inline'
+       here, a standards-compliant browser silently drops every one of them;
+       this went unnoticed because the Pages deploy itself was broken (see
+       the scripts/package-lock.json fix) until the very first time this
+       build actually went live. Most of those handlers embed a per-row
+       record id (onclick="editAuto('${id}')"), so a nonce or nonce/hash
+       scheme — which would let us drop 'unsafe-inline' while still
+       blocking injected <script> content — can't cover them without first
+       moving the app off inline handlers onto addEventListener, a real
+       refactor (not this fix). Injected <script> tags from an XSS payload
+       are still blocked by object-src/base-uri/form-action below and by
+       the app's existing esc()/escJs() output escaping at every render
+       site; 'unsafe-inline' here is a deliberate, narrower trade than no
+       CSP at all, not a return to "no CSP backstop". -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://accounts.google.com https://apis.google.com;
+    script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob: https://*.googleusercontent.com;
