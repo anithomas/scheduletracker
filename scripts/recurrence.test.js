@@ -56,6 +56,30 @@ test('isRecurringOnDay: monthly respects an interval of more than one month', ()
   assert.equal(R.isRecurringOnDay(e, '2026-07-15'), true);
 });
 
+test('isRecurringOnDay: yearly, same month/day every N years (Phase 4, F1)', () => {
+  const e = { date: '2024-03-10', recurrence: { type: 'yearly', interval: 1 } };
+  assert.equal(R.isRecurringOnDay(e, '2024-03-10'), true);  // start itself
+  assert.equal(R.isRecurringOnDay(e, '2025-03-10'), true);
+  assert.equal(R.isRecurringOnDay(e, '2026-03-10'), true);
+  assert.equal(R.isRecurringOnDay(e, '2025-03-09'), false);
+  assert.equal(R.isRecurringOnDay(e, '2025-04-10'), false); // right day, wrong month
+  assert.equal(R.isRecurringOnDay(e, '2023-03-10'), false); // before start
+});
+
+test('isRecurringOnDay: yearly respects an interval of more than one year', () => {
+  const e = { date: '2026-05-01', recurrence: { type: 'yearly', interval: 2 } };
+  assert.equal(R.isRecurringOnDay(e, '2027-05-01'), false); // +1 year, skipped
+  assert.equal(R.isRecurringOnDay(e, '2028-05-01'), true);  // +2 years
+  assert.equal(R.isRecurringOnDay(e, '2030-05-01'), true);  // +4 years
+});
+
+test('isRecurringOnDay: yearly on Feb 29 clamps to Feb 28 in non-leap years', () => {
+  const e = { date: '2024-02-29', recurrence: { type: 'yearly', interval: 1 } }; // 2024 is a leap year
+  assert.equal(R.isRecurringOnDay(e, '2025-02-28'), true);  // 2025 not a leap year — clamped
+  assert.equal(R.isRecurringOnDay(e, '2025-03-01'), false);
+  assert.equal(R.isRecurringOnDay(e, '2028-02-29'), true);  // 2028 is a leap year — exact day back
+});
+
 test('isRecurringOnDay: respects endDate', () => {
   const e = { date: '2026-01-01', recurrence: { type: 'daily', interval: 1, endDate: '2026-01-10' } };
   assert.equal(R.isRecurringOnDay(e, '2026-01-10'), true);
@@ -106,6 +130,12 @@ test('getNextOccurrence returns null when nothing matches within maxDays, or eve
   const e = { date: '2026-01-05', recurrence: { type: 'monthly', interval: 1 } };
   assert.equal(R.getNextOccurrence(e, '2026-01-06', 20), null); // next is Feb 5, > 20 days out
   assert.equal(R.getNextOccurrence({ date: '2026-01-05' }, '2026-01-06'), null);
+});
+
+test('getNextOccurrence finds a yearly event up to ~365 days out, given a wide enough maxDays', () => {
+  const e = { date: '2026-01-05', recurrence: { type: 'yearly', interval: 1 } };
+  assert.equal(R.getNextOccurrence(e, '2026-02-01', 400), '2027-01-05');
+  assert.equal(R.getNextOccurrence(e, '2026-02-01', 90), null); // too narrow a window
 });
 
 test('addDays is pure Y-M-D arithmetic, immune to DST and month/year rollover', () => {

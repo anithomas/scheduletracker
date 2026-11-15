@@ -6,7 +6,7 @@
 // declarations just give the TypeScript modules that call it real types
 // instead of treating it as `any`.
 interface RecurrenceRule {
-  type: 'daily' | 'weekly' | 'monthly';
+  type: 'daily' | 'weekly' | 'monthly' | 'yearly';
   interval?: number;
   daysOfWeek?: number[];
   endDate?: string;
