@@ -1,0 +1,55 @@
+name: Deploy Firestore & Storage Rules
+
+# firestore.rules and storage.rules live in this repo but are NOT part of
+# what deploy-pages.yml publishes — that workflow only builds and ships the
+# static site to GitHub Pages. Firestore/Storage security rules are a
+# separate Firebase resource with their own deploy step, and until this
+# workflow existed, nothing ever ran it: editing firestore.rules in a PR
+# and merging it to main changed nothing in production. The live rules
+# stayed whatever had last been published by hand via the Firebase CLI or
+# Console — which is why, after Phase 4 added new memberPrefs fields
+# (icsFeedToken, updatedBy) to the rules file, the live rules still didn't
+# recognize them and rejected writes with "Missing or insufficient
+# permissions" even though the code and the rules file agreed with each
+# other.
+#
+# This closes that gap: any push to main that touches the rules files (or
+# their config) deploys them straight to Firebase, using the same
+# FIREBASE_SERVICE_ACCOUNT secret already used by generate-ics-feeds.js /
+# send-reminders.js (Settings > Secrets > Actions). It deploys the files'
+# content exactly as merged — it doesn't change what the rules say, only
+# makes sure what they say actually reaches Firebase.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.json'
+      - '.firebaserc'
+  workflow_dispatch: # manual re-run from the Actions tab, e.g. to re-sync after an out-of-band console edit
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-firestore-rules
+  cancel-in-progress: false # never cancel a rules deploy mid-flight
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write service account key
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore + Storage rules
+        run: npx firebase-tools@13 deploy --only firestore:rules,storage:rules --project home-and-auto-tracker --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
